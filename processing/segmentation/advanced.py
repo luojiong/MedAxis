@@ -244,6 +244,38 @@ def register_advanced_segmentation():
         run_func=_fcm,
     ))
     _registry.register(AlgorithmDefinition(
+        id="centerline_extraction", name="Vessel Centerline", category=AlgorithmCategory.SEGMENTATION,
+        description="3D skeletonization + shortest-path centerline of a vessel "
+                    "label; returns the centerline polyline in statistics.",
+        parameters=[
+            AlgorithmParameter("spacing", "float3", "Spacing (mm)", default=[1.0, 1.0, 1.0]),
+            AlgorithmParameter("origin", "float3", "Origin (mm)", default=[0.0, 0.0, 0.0]),
+        ],
+        run_func=_centerline_extraction,
+        input_parameter="volume",
+    ))
+
+
+def _centerline_extraction(volume, params, progress_callback=None):
+    """Centerline of a vessel label volume (skimage thinning + Dijkstra)."""
+    from geometry.centerline import extract_centerline, centerline_to_bspline
+
+    label_arr = volume.to_numpy() if hasattr(volume, "to_numpy") else volume
+    spacing = tuple(float(v) for v in params.get("spacing", [1.0, 1.0, 1.0]))
+    origin = tuple(float(v) for v in params.get("origin", [0.0, 0.0, 0.0]))
+    result = extract_centerline(label_arr, spacing=spacing, origin=origin)
+    curve = centerline_to_bspline(result["points"])
+    return AlgorithmResult(
+        algorithm_id="centerline_extraction",
+        statistics={
+            "points": result["points"].tolist(),
+            "length_mm": curve.get("length_mm", result["length_mm"]),
+            "endpoints": result["endpoints"].tolist(),
+            "samples": curve["points"].tolist(),
+        },
+    )
+
+    _registry.register(AlgorithmDefinition(
         id="island_remove", name="Island Remove (Keep Largest)", category=AlgorithmCategory.SEGMENTATION,
         description="Keep the largest connected component of a label volume.",
         parameters=[], run_func=_island_remove,
