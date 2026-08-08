@@ -31,6 +31,7 @@ from PySide6.QtCore import Qt
 from vtkmodules.vtkCommonDataModel import (
     vtkImageData, vtkPiecewiseFunction, vtkPolyData,
 )
+from vtkmodules.vtkFiltersCore import vtkFlyingEdges3D
 from vtkmodules.vtkInteractionStyle import vtkInteractorStyleTrackballCamera
 from vtkmodules.vtkRenderingAnnotation import vtkAnnotatedCubeActor, vtkAxesActor
 from vtkmodules.vtkRenderingCore import (
@@ -301,6 +302,43 @@ class VolumeView(QWidget):
         self._renderer.AddActor(actor)
         self._meshes[name] = actor
         self.mesh_count_changed.emit(len(self._meshes))
+        self.render()
+        return actor
+
+    def add_label_overlay(self, label, color=None, opacity: float = 0.85) -> vtkActor:
+        """Overlay a label volume as a colored iso-surface (flying edges)."""
+        import numpy as np
+        from vtkmodules.util.numpy_support import numpy_to_vtk
+
+        if color is None:
+            color = getattr(label, "color", None)
+        if isinstance(color, (tuple, list)):
+            rgba = tuple(float(c) for c in color)
+            color = (rgba[0], rgba[1], rgba[2]) if len(rgba) >= 3 else (1.0, 0.0, 0.0)
+        else:
+            color = (1.0, 0.0, 0.0)
+
+        arr = np.asarray(label.array if hasattr(label, "array") else label)
+        vtk_data = numpy_to_vtk((arr > 0).astype(np.uint8).ravel(), deep=True)
+        vtk_data.SetNumberOfComponents(1)
+        img = vtkImageData()
+        img.SetDimensions(*reversed(arr.shape))
+        img.GetPointData().SetScalars(vtk_data)
+
+        fe = vtkFlyingEdges3D()
+        fe.SetInputData(img)
+        fe.SetValue(0, 0.5)
+        fe.ComputeNormalsOn()
+        fe.Update()
+
+        mapper = vtkPolyDataMapper()
+        mapper.SetInputData(fe.GetOutput())
+        actor = vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(*color)
+        actor.GetProperty().SetOpacity(opacity)
+        self._renderer.AddActor(actor)
+        self._meshes[f"label_{getattr(label, 'name', '')}"] = actor
         self.render()
         return actor
 

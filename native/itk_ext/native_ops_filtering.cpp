@@ -20,6 +20,7 @@
 #include <itkBinaryDilateImageFilter.h>
 #include <itkBinaryErodeImageFilter.h>
 #include <itkBinaryFillholeImageFilter.h>
+#include <itkSignedMaurerDistanceMapImageFilter.h>
 #include <itkBinaryThresholdImageFilter.h>
 #include <itkCannyEdgeDetectionImageFilter.h>
 #include <itkCastImageFilter.h>
@@ -327,6 +328,23 @@ py::array_t<float> filter_3d(py::array_t<float, py::array::c_style | py::array::
         f->SetInput(input);
         f->SetOutputMinimum(param_float(params, "output_minimum", 0.0f));
         f->SetOutputMaximum(param_float(params, "output_maximum", 255.0f));
+        f->Update();
+        return export_image(f->GetOutput());
+    }
+    if (kind == "distance_map")
+    {
+        // Signed distance map of the foreground (binary mask > 0.5).
+        auto bin = itk::BinaryThresholdImageFilter<ImageF, ImageU8>::New();
+        bin->SetInput(input);
+        bin->SetLowerThreshold(0.5f);
+        bin->SetUpperThreshold(1.0e30f);
+        bin->SetInsideValue(1);
+        bin->SetOutsideValue(0);
+        bin->Update();
+        auto f = itk::SignedMaurerDistanceMapImageFilter<ImageU8, ImageF>::New();
+        f->SetInput(bin->GetOutput());
+        f->SetInsideIsPositive(param_bool(params, "inside_positive", true));
+        f->SetSquaredDistance(false);
         f->Update();
         return export_image(f->GetOutput());
     }

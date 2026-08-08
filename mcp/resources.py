@@ -1,7 +1,7 @@
 """
 MCP Resources — exposing current workspace state to AI agents.
 """
-from ..router import MCPResource
+from .router import MCPResource
 
 
 def _make_patients_resource(controller) -> MCPResource:

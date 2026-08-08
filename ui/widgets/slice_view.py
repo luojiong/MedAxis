@@ -433,6 +433,10 @@ class SliceView(QWidget):
         lut.SetNumberOfTableValues(256)
         lut.SetRange(0, 255)
         color = getattr(label, "color", QColor(255, 0, 0))
+        if not isinstance(color, QColor):
+            # LabelData stores colors as RGBA tuples.
+            rgba = tuple(float(c) for c in color)
+            color = QColor.fromRgbF(*rgba[:3], rgba[3] if len(rgba) > 3 else 1.0)
         rgb = (color.redF(), color.greenF(), color.blueF())
         for i in range(256):
             if i == 0:
