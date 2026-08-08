@@ -244,6 +244,54 @@ def register_advanced_segmentation():
         run_func=_fcm,
     ))
     _registry.register(AlgorithmDefinition(
+        id="stent_view", name="Stent View (Circular Unwrap)", category=AlgorithmCategory.SEGMENTATION,
+        description="Angular unwrap of the vessel wall around the centerline; "
+                    "returns the angle x arc-length intensity map.",
+        parameters=[
+            AlgorithmParameter("radius_mm", "float", "Unwrap Radius (mm)", default=5.0, min_val=1.0, max_val=30.0),
+            AlgorithmParameter("angular_samples", "int", "Angular Samples", default=360, min_val=60, max_val=720),
+            AlgorithmParameter("spacing", "float3", "Spacing (mm)", default=[1.0, 1.0, 1.0]),
+            AlgorithmParameter("origin", "float3", "Origin (mm)", default=[0.0, 0.0, 0.0]),
+        ],
+        run_func=_stent_view,
+        input_parameter="volume",
+    ))
+
+
+def _stent_view(volume, params, progress_callback=None):
+    """Stent view: needs the current label (vessel) + the intensity volume."""
+    from geometry.stent import stent_view_from_label
+
+    label = params.get("label")
+    if label is None:
+        # Fall back to the algorithm input itself being the label and look
+        # for the intensity volume in params.
+        label = volume
+        intensity = params.get("intensity_volume", None)
+        if intensity is None:
+            raise ValueError("stent_view needs a label (vessel) and an intensity volume")
+    else:
+        intensity = volume
+
+    label_arr = label.to_numpy() if hasattr(label, "to_numpy") else label
+    intensity_arr = intensity.to_numpy() if hasattr(intensity, "to_numpy") else intensity
+    spacing = tuple(float(v) for v in params.get("spacing", [1.0, 1.0, 1.0]))
+    origin = tuple(float(v) for v in params.get("origin", [0.0, 0.0, 0.0]))
+    result = stent_view_from_label(
+        label_arr, intensity_arr,
+        radius_mm=float(params.get("radius_mm", 5.0)),
+        angular_samples=int(params.get("angular_samples", 360)),
+        spacing=spacing, origin=origin)
+    return AlgorithmResult(
+        algorithm_id="stent_view",
+        statistics={
+            "map": result["map"].tolist(),
+            "shape": list(result["map"].shape),
+            "radius_mm": result["radius_mm"],
+        },
+    )
+
+    _registry.register(AlgorithmDefinition(
         id="centerline_extraction", name="Vessel Centerline", category=AlgorithmCategory.SEGMENTATION,
         description="3D skeletonization + shortest-path centerline of a vessel "
                     "label; returns the centerline polyline in statistics.",

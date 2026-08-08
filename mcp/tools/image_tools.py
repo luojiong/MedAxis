@@ -327,6 +327,35 @@ def _make_export_screenshot_tool(controller) -> MCPTool:
     )
 
 
+def _make_run_script_tool(controller) -> MCPTool:
+    """Execute a Python snippet in the script sandbox (Standard level)."""
+
+    async def handler(params: dict):
+        code = params.get("code")
+        if not code:
+            raise ValueError("code is required")
+        try:
+            from scripts.sandbox import Sandbox
+        except ImportError as exc:
+            raise RuntimeError("scripts subsystem unavailable") from exc
+        sandbox = Sandbox(level="standard", api=None)
+        result = sandbox.execute(code)
+        return {"executed": True, "result": repr(result) if result is not None else None}
+
+    return MCPTool(
+        name="run_script",
+        description="Execute a Python snippet in the MedAxis script sandbox "
+                    "(standard permissions: medaxis API, no os/subprocess).",
+        parameters_schema={
+            "type": "object",
+            "properties": {"code": {"type": "string", "description": "Python code"}},
+            "required": ["code"],
+        },
+        handler=handler,
+        permission=PermissionLevel.CONTROL,
+    )
+
+
 def register_all_tools(controller) -> list[MCPTool]:
     """Register all MCP tools with the given AppController."""
     tools = [
@@ -341,5 +370,6 @@ def register_all_tools(controller) -> list[MCPTool]:
         _make_run_algorithm_tool(controller),
         _make_get_label_stats_tool(controller),
         _make_export_screenshot_tool(controller),
+        _make_run_script_tool(controller),
     ]
     return tools
