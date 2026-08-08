@@ -19,15 +19,13 @@ with an ``AppController`` to wire every action and signal.
 
 from __future__ import annotations
 
-import traceback
 from typing import List, Optional
 
 from PySide6.QtCore import QSettings, Qt, Slot
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
-    QDockWidget, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
-    QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar, QSplitter,
-    QVBoxLayout, QWidget,
+    QDockWidget, QFileDialog, QLabel, QMainWindow, QMessageBox, QProgressBar, QSplitter,
+    QWidget,
 )
 
 from .panels.ai_service_panel import AIServicePanel
@@ -35,67 +33,16 @@ from .panels.algorithm_panel import AlgorithmPanel
 from .panels.dicom_browser import DICOMBrowser
 from .panels.property_panel import PropertyPanel
 from .panels.toolbar import MedAxisToolBar
+from scripts.console import ScriptConsole
+from scripts.editor import ScriptEditor
 from .panels.view_container import ViewContainer
 from .widgets.label_editor import LabelEditor
 
 
-class ScriptConsoleWidget(QWidget):
-    """Minimal interactive Python console used by the Script Console dock.
+class ScriptConsoleWidget(ScriptConsole):
+    """Script REPL docked at the bottom of the main window."""
 
-    Code typed into the input line (or pasted into the output pane in a
-    future version) is executed in a persistent private namespace.  The
-    ``context`` dict is seeded into that namespace so the application can
-    expose e.g. ``app``, ``volume`` or helper functions to scripts.
-    """
-
-    def __init__(self, context: Optional[dict] = None,
-                 parent: Optional[QWidget] = None) -> None:
-        super().__init__(parent)
-        self._namespace: dict = {"__name__": "__medaxis_console__"}
-        if context:
-            self._namespace.update(context)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(2, 2, 2, 2)
-
-        self._output = QPlainTextEdit(self)
-        self._output.setReadOnly(True)
-        self._output.setMaximumBlockCount(5000)
-        self._output.setPlaceholderText("MedAxis script console")
-        layout.addWidget(self._output, 1)
-
-        row = QHBoxLayout()
-        self._prompt = QLabel(">>>", self)
-        self._input = QLineEdit(self)
-        self._input.setPlaceholderText("Enter Python code, press Enter")
-        self._input.returnPressed.connect(self._execute_line)
-        row.addWidget(self._prompt)
-        row.addWidget(self._input, 1)
-        layout.addLayout(row)
-
-    # ------------------------------------------------------------------ #
-    def append_context(self, context: dict) -> None:
-        self._namespace.update(context)
-
-    def execute(self, code: str) -> None:
-        """Execute *code* in the console namespace, printing results."""
-        self._output.appendPlainText(f">>> {code}")
-        try:
-            try:
-                result = eval(code, self._namespace)  # noqa: S307
-                if result is not None:
-                    self._output.appendPlainText(repr(result))
-            except SyntaxError:
-                exec(code, self._namespace)  # noqa: S102
-        except Exception:
-            self._output.appendPlainText(traceback.format_exc(limit=3))
-
-    def _execute_line(self) -> None:
-        code = self._input.text().strip()
-        if not code:
-            return
-        self._input.clear()
-        self.execute(code)
+    pass
 
 
 class MainWindow(QMainWindow):
@@ -334,12 +281,20 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.LeftDockWidgetArea, self.dicom_browser)
 
         # Script console — bottom.
-        self.script_console = ScriptConsoleWidget(context={"app": self}, parent=self)
+        self.script_console = ScriptConsoleWidget(parent=self)
         self.console_dock = QDockWidget("Script Console", self)
         self.console_dock.setObjectName("ScriptConsoleDock")
         self.console_dock.setWidget(self.script_console)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.console_dock)
         self.console_dock.setVisible(False)
+
+        # Script editor — bottom (hidden until opened from the Tools menu).
+        self.script_editor = ScriptEditor(parent=self)
+        self.script_editor_dock = QDockWidget("Script Editor", self)
+        self.script_editor_dock.setObjectName("ScriptEditorDock")
+        self.script_editor_dock.setWidget(self.script_editor)
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.script_editor_dock)
+        self.script_editor_dock.setVisible(False)
 
         # AI services — right.
         self.ai_service_panel = AIServicePanel(self)
@@ -485,6 +440,11 @@ class MainWindow(QMainWindow):
             "controller": controller,
             "window": self,
         })
+        try:
+            from scripts.ui_integration import attach_scripts
+            attach_scripts(controller, self)
+        except Exception:
+            pass
 
     # ================================================================== #
     # File / session slots
