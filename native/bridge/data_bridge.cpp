@@ -58,8 +58,11 @@ void apply_info_to_vtk(vtkImageData* img, const VolumeInfo& info) {
 } // namespace
 
 DataBridge& DataBridge::instance() {
-    static DataBridge s_instance;
-    return s_instance;
+    // Intentionally leaked: destroying the singleton during interpreter
+    // shutdown races with VTK Python module teardown and crashes (classic
+    // cross-language exit-order problem). The OS reclaims the memory.
+    static DataBridge* s_instance = new DataBridge();
+    return *s_instance;
 }
 
 int DataBridge::next_handle() {

@@ -60,6 +60,18 @@ def _configure_native_search() -> None:
     if os.name != "nt":
         return
 
+    # The pip VTK wheel keeps its runtime DLLs in ``vtk.libs`` — compiled
+    # extensions (medaxis_bridge) link them by name, so the directory must be
+    # visible to the Windows loader.
+    try:
+        import vtk
+
+        _pip_vtk_libs = Path(vtk.__file__).resolve().parent / "vtk.libs"
+        if _pip_vtk_libs.is_dir():
+            os.add_dll_directory(str(_pip_vtk_libs))
+    except Exception:
+        pass
+
     for prefix in _native_prefixes():
         for sub in _DLL_SUBDIRS:
             dll_dir = os.path.join(prefix, sub)

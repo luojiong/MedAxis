@@ -126,6 +126,13 @@ jobs:
       - name: Build native modules
         run: cmake --build build-native --config Release --parallel 4
 
+      - name: Generate pip VTK import libraries
+        shell: powershell
+        run: |
+          powershell -File scripts/ci/gen_pip_vtk_libs.ps1 `
+            -SitePackages "$env:GITHUB_WORKSPACE/.venv/Lib/site-packages" `
+            -OutDir "$env:GITHUB_WORKSPACE/build-deps/pip_vtk_libs"
+
       - name: Deploy .pyd to medaxis/_native
         shell: powershell
         run: |
@@ -176,12 +183,13 @@ jobs:
         run: |
           $dest = "dist/MedAxis/_internal"
           $envRoot = "$env:MAMBA_ROOT_PREFIX/envs/${{ env.MAMBA_ENV }}"
-          Get-ChildItem "$envRoot/Library/bin" -Filter "vtk*.dll" | Copy-Item -Destination $dest
+          # medaxis_bridge links the *pip* VTK wheel DLLs (vtkCommonCore-9.6.2.dll
+          # etc., resolved via vtk.libs by core/native_extensions.py) — copying the
+          # conda VTK DLLs here would load a second VTK into the process and crash.
           Get-ChildItem "$envRoot/Library/bin" -Filter "TK*.dll" | Copy-Item -Destination $dest
           Get-ChildItem "$envRoot/Library/bin" -Filter "libboost*.dll" | Copy-Item -Destination $dest
           Get-ChildItem "$envRoot/Library/bin" -Filter "libgmp*.dll" | Copy-Item -Destination $dest
           Get-ChildItem "$envRoot/Library/bin" -Filter "libmpfr*.dll" | Copy-Item -Destination $dest
-          Get-ChildItem "$envRoot/Library/bin" -Filter "tbb*.dll" | Copy-Item -Destination $dest
           Get-ChildItem "$envRoot/Library/bin" -Filter "expat*.dll" | Copy-Item -Destination $dest
           Get-ChildItem "$envRoot/Library/bin" -Filter "lzma*.dll" | Copy-Item -Destination $dest
           Get-ChildItem "$envRoot/Library/bin" -Filter "avcodec*.dll" | Copy-Item -Destination $dest
@@ -190,6 +198,13 @@ jobs:
           Get-ChildItem "$envRoot/Library/bin" -Filter "swscale*.dll" | Copy-Item -Destination $dest
           Get-ChildItem "$envRoot/Library/bin" -Filter "swresample*.dll" | Copy-Item -Destination $dest
           Get-ChildItem "$env:GITHUB_WORKSPACE/build-deps/itk-install/bin" -Filter "itk*.dll" | Copy-Item -Destination $dest
+
+      - name: Smoke-test packaged native modules
+        shell: powershell
+        run: |
+          $env:MEDAXIS_SMOKE_NATIVE = "1"
+          & "dist/MedAxis/MedAxis.exe"
+          if ($LASTEXITCODE -ne 0) { throw "packaged native smoke test failed ($LASTEXITCODE)" }
 
       - name: Smoke-test the packaged app
         shell: powershell
