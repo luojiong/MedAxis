@@ -78,22 +78,31 @@ def _full_radiomics(volume, params, progress_callback=None):
             stats["maximum"] = float(values.max())
             stats["median"] = float(np.median(values))
 
-    # Texture features on the (masked) volume.
-    arr = np.asarray(volume.to_numpy(), dtype=np.float64)
+    # Texture features on the (masked) volume: prefer the compiled backend.
+    arr = np.asarray(volume.to_numpy(), dtype=np.float32)
     if mask is not None:
         arr = np.where(np.asarray(mask, dtype=bool), arr, 0.0)
-    try:
-        stats.update(extract_texture_features(arr, families=families,
-                                              levels=int(params.get("levels", 32))))
-    except Exception as exc:  # pragma: no cover - defensive
-        stats["texture_error"] = str(exc)[:200]
+    levels = int(params.get("levels", 32))
+    native = get_native_module("medaxis_radiomics")
+    if native is not None:
+        try:
+            stats.update(dict(native.texture_features(
+                np.ascontiguousarray(arr), levels, families)))
+        except Exception as exc:  # pragma: no cover - defensive
+            stats["texture_error"] = str(exc)[:200]
+    else:
+        try:
+            stats.update(extract_texture_features(arr, families=families, levels=levels))
+        except Exception as exc:  # pragma: no cover - defensive
+            stats["texture_error"] = str(exc)[:200]
 
     # Shape features of the label mask.
     if mask is not None:
         spacing = getattr(volume, "spacing_mm", (1.0, 1.0, 1.0))
+        mask_arr = mask.to_numpy() if hasattr(mask, "to_numpy") else np.asarray(mask)
         try:
-            stats.update(extract_shape_features(np.asarray(mask, dtype=bool).astype(np.uint8),
-                                                spacing=spacing))
+            stats.update(extract_shape_features(
+                (np.asarray(mask_arr) > 0).astype(np.uint8), spacing=spacing))
         except Exception as exc:  # pragma: no cover - defensive
             stats["shape_error"] = str(exc)[:200]
 

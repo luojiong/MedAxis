@@ -68,8 +68,14 @@ def shape_features_3d(label: np.ndarray, spacing=(1.0, 1.0, 1.0)) -> dict:
     volume = p.area  # voxels
     volume_mm3 = p.area * spacing[0] * spacing[1] * spacing[2]
     surf = p.surface_area if hasattr(p, "surface_area") else 0.0
-    diameters = p.axis_major_length, p.axis_middle_length, p.axis_minor_length
-    max_diam = float(max(diameters))
+    # Principal axes from the inertia tensor (scaled to physical units).
+    eigvals = sorted(p.inertia_tensor_eigvals)
+    _major_axis, middle, minor = (
+        float(eigvals[2]) * spacing[0],
+        float(eigvals[1]) * spacing[1],
+        float(eigvals[0]) * spacing[2],
+    )
+    max_diam = float(p.axis_major_length)
 
     # Bounding-box-based compactness/flatness (pyradiomics style).
     bbox = p.bbox  # (k0, j0, i0, k1, j1, i1)
@@ -85,7 +91,7 @@ def shape_features_3d(label: np.ndarray, spacing=(1.0, 1.0, 1.0)) -> dict:
     def compactness():
         return _safe_div(volume_mm3, np.sqrt(np.pi) * surf**1.5) if surf > 0 else 0.0
 
-    major, middle, minor = sorted([di, dj, dk], reverse=True)
+    bbox_major, bbox_middle, bbox_minor = sorted([di, dj, dk], reverse=True)
 
     return {
         "shape3d_volume_voxels": int(volume),
@@ -94,12 +100,12 @@ def shape_features_3d(label: np.ndarray, spacing=(1.0, 1.0, 1.0)) -> dict:
         "shape3d_surface_volume_ratio": _safe_div(surf, volume_mm3),
         "shape3d_sphericity": sphericity(),
         "shape3d_compactness": compactness(),
-        "shape3d_flatness": _safe_div(minor, major),
-        "shape3d_elongation": _safe_div(middle, major),
+        "shape3d_flatness": _safe_div(minor, bbox_major),
+        "shape3d_elongation": _safe_div(middle, bbox_major),
         "shape3d_max_3d_diameter": max_diam,
-        "shape3d_major_axis": float(major),
-        "shape3d_middle_axis": float(middle),
-        "shape3d_minor_axis": float(minor),
+        "shape3d_major_axis": float(bbox_major),
+        "shape3d_middle_axis": float(bbox_middle),
+        "shape3d_minor_axis": float(bbox_minor),
         "shape3d_bbox_volume_mm3": float(di * dj * dk),
         "shape3d_voxel_volume": float(volume_mm3 / max(volume, 1)),
         "shape3d_component_count": len(props),

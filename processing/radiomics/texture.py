@@ -52,24 +52,29 @@ def glcm_features(arr: np.ndarray, levels: int = 32, distances: tuple = (1,)) ->
         # Accumulate co-occurrence over the group's directions.
         p = np.zeros((levels, levels), dtype=np.float64)
         for dx, dy, dz in group:
-            shifted = np.zeros_like(q)
-            shifted = np.roll(q, shift=dx, axis=2)
-            shifted = np.roll(shifted, shift=dy, axis=1)
-            shifted = np.roll(shifted, shift=dz, axis=0)
-            mask = np.ones(q.shape, dtype=bool)
+            # Explicit slicing keeps only real neighboring pairs (no wrap).
             if dx > 0:
-                mask[..., dx:] = False
+                a = q[..., :-dx]
+                b = q[..., dx:]
             elif dx < 0:
-                mask[..., :dx] = False
+                a = q[..., -dx:]
+                b = q[..., :dx]
+            else:
+                a = q
+                b = q
             if dy > 0:
-                mask[:, dy:, :] = False
+                a = a[:, :-dy, :]
+                b = b[:, dy:, :]
             elif dy < 0:
-                mask[:, :dy, :] = False
+                a = a[:, -dy:, :]
+                b = b[:, :dy, :]
             if dz > 0:
-                mask[dz:, :, :] = False
+                a = a[:-dz, :, :]
+                b = b[dz:, :, :]
             elif dz < 0:
-                mask[:dz, :, :] = False
-            pairs = np.stack([q[mask], shifted[mask]], axis=1)
+                a = a[-dz:, :, :]
+                b = b[:dz, :, :]
+            pairs = np.stack([a.ravel(), b.ravel()], axis=1)
             if len(pairs):
                 np.add.at(p, (pairs[:, 0], pairs[:, 1]), 1.0)
         total = p.sum()
@@ -210,13 +215,15 @@ def glrlm_features(arr: np.ndarray, levels: int = 32) -> dict:
 
 def glszm_features(arr: np.ndarray, levels: int = 32) -> dict:
     q = quantize(arr, levels)
-    # Per intensity level, label connected components and count zone sizes.
+    # Per intensity level, label connected components (26-connectivity like
+    # the C++ backend) and count zone sizes.
     zones = []  # (level, size)
+    structure = np.ones((3, 3, 3), dtype=int)
     for level in range(levels):
         mask = q == level
         if not mask.any():
             continue
-        labeled, n = ndimage.label(mask)
+        labeled, n = ndimage.label(mask, structure=structure)
         if n == 0:
             continue
         sizes = ndimage.sum(np.ones_like(labeled), labeled, index=np.arange(1, n + 1))
@@ -263,19 +270,22 @@ def glszm_features(arr: np.ndarray, levels: int = 32) -> dict:
 def gldm_features(arr: np.ndarray, levels: int = 32, delta: int = 0) -> dict:
     q = quantize(arr, levels)
     nk, nj, ni = q.shape
-    # Dependence: count neighbors within Chebyshev radius 1 whose |diff| <= delta.
-    padded = np.pad(q, 1, mode="edge").astype(np.float64)
-    center = padded[1:-1, 1:-1, 1:-1]
+    # Dependence: count neighbors (Chebyshev radius 1) whose |diff| <= delta.
+    # Boundary voxels only count in-bounds neighbors (matches the C++ backend).
     deps = np.zeros(q.shape, dtype=np.int16)
     for dk in (-1, 0, 1):
         for dj in (-1, 0, 1):
             for di in (-1, 0, 1):
                 if dk == dj == di == 0:
                     continue
-                neighbor = padded[1 + dk:1 + dk + nk, 1 + dj:1 + dj + nj, 1 + di:1 + di + ni]
-                deps += (np.abs(center - neighbor) <= delta).astype(np.int16)
+                k0, k1 = max(0, -dk), min(nk, nk - dk)
+                j0, j1 = max(0, -dj), min(nj, nj - dj)
+                i0, i1 = max(0, -di), min(ni, ni - di)
+                a = q[k0:k1, j0:j1, i0:i1]
+                b = q[k0 + dk:k1 + dk, j0 + dj:j1 + dj, i0 + di:i1 + di]
+                deps[k0:k1, j0:j1, i0:i1] += (np.abs(a.astype(np.int32) - b.astype(np.int32)) <= delta)
 
-    m = np.zeros((levels, 27), dtype=np.float64)  # dependence up to 26
+    m = np.zeros((levels, 27), dtype=np.float64)  # dependence 0..26
     for level in range(levels):
         mask = q == level
         if mask.any():
@@ -286,21 +296,24 @@ def gldm_features(arr: np.ndarray, levels: int = 32, delta: int = 0) -> dict:
     p = m / nd
     g_idx = np.arange(levels, dtype=np.float64)
     d_idx = np.arange(27, dtype=np.float64)
+    # Dependence 0 excluded from feature sums (matches the C++ backend).
+    p_nz = p[:, 1:]
+    d_nz = d_idx[1:]
 
-    sde = float((p / (d_idx[None, :] ** 2 + 1e-12)).sum())
-    lde = float((p * d_idx[None, :] ** 2).sum())
+    sde = float((p_nz / (d_nz[None, :] ** 2 + 1e-12)).sum())
+    lde = float((p_nz * d_nz[None, :] ** 2).sum())
     gln = float((p.sum(axis=1) ** 2).sum())
     dn = float((p.sum(axis=0) ** 2).sum())
     dp = float(nd / max(q.size, 1))
     lg = float((p * g_idx[:, None]).sum())
     hg = float((p * g_idx[:, None] ** 2).sum())
-    sdlgle = float((p / (g_idx[:, None] ** 2 * d_idx[None, :] ** 2 + 1e-12)).sum())
-    sdhgle = float((p * g_idx[:, None] ** 2 / (d_idx[None, :] ** 2 + 1e-12)).sum())
-    ldlgle = float((p * d_idx[None, :] ** 2 / (g_idx[:, None] ** 2 + 1e-12)).sum())
-    ldhgle = float((p * g_idx[:, None] ** 2 * d_idx[None, :] ** 2).sum())
+    sdlgle = float((p_nz / (g_idx[:, None] ** 2 * d_nz[None, :] ** 2 + 1e-12)).sum())
+    sdhgle = float((p_nz * g_idx[:, None] ** 2 / (d_nz[None, :] ** 2 + 1e-12)).sum())
+    ldlgle = float((p_nz * d_nz[None, :] ** 2 / (g_idx[:, None] ** 2 + 1e-12)).sum())
+    ldhgle = float((p_nz * g_idx[:, None] ** 2 * d_nz[None, :] ** 2).sum())
     glv = float((((p.sum(axis=1) - gln / levels) ** 2).sum() / max(levels - 1, 1)) if levels > 1 else 0.0)
-    dv = float((((p.sum(axis=0) - dn / 27) ** 2).sum() / 26.0) if 26 > 0 else 0.0)
-    de = float(-(p * np.log(p + 1e-12)).sum())
+    dv = float((((p.sum(axis=0) - dn / 27.0) ** 2).sum() / 26.0))
+    de = float(-(p_nz * np.log(p_nz + 1e-12)).sum())
     names = ["SDE", "LDE", "GLN", "DN", "DP", "LGRE", "HGRE",
              "SDLGE", "SDHGE", "LDLGE", "LDHGE", "GLV", "DV", "DE"]
     values = [sde, lde, gln, dn, dp, lg, hg, sdlgle, sdhgle, ldlgle, ldhgle, glv, dv, de]

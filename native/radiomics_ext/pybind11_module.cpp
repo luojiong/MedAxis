@@ -1,8 +1,10 @@
 #include <pybind11/numpy.h>
+#include <pybind11/stl.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
 #include "first_order.h"
+#include "texture.h"
 
 namespace py = pybind11;
 using namespace medaxis::radiomics_ext;
@@ -19,4 +21,12 @@ PYBIND11_MODULE(medaxis_radiomics, module)
             return first_order_features(std::vector<double>(begin, begin + flat.size()));
         },
         py::arg("values"));
+
+    module.def(
+        "texture_features",
+        &texture_features,
+        py::arg("values"),
+        py::arg("levels") = 32,
+        py::arg("families") = std::vector<std::string>{"glcm", "glrlm", "glszm", "gldm", "ngtdm"},
+        "Texture radiomics: GLCM(24) + GLRLM(16) + GLSZM(16) + GLDM(14) + NGTDM(5).");
 }

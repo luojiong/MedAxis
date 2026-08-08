@@ -2,6 +2,7 @@
 # can be added without changing the Python module boundary.
 pybind11_add_module(medaxis_radiomics
     first_order.cpp
+    texture.cpp
     pybind11_module.cpp
 )
 
