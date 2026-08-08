@@ -286,7 +286,7 @@ class SliceView(QWidget):
 
         # Overlay pipelines need the new input.
         for overlay in self._overlays.values():
-            overlay["reslice"].Update()
+            self._safe_reslice_update(overlay["reslice"])
 
         self.reset_view()
         self.render()
@@ -331,9 +331,9 @@ class SliceView(QWidget):
         for i in range(3):
             self._axes_matrix.SetElement(i, 3, plane_pos[i])
 
-        self._reslice.Update()
+        self._safe_reslice_update(self._reslice)
         for overlay in self._overlays.values():
-            overlay["reslice"].Update()
+            self._safe_reslice_update(overlay["reslice"])
 
         # Keep crosshair on the new plane.
         ch = list(self._crosshair)
@@ -465,6 +465,12 @@ class SliceView(QWidget):
         }
         self.render()
 
+    @staticmethod
+    def _safe_reslice_update(reslice) -> None:
+        """Update a reslice filter only when it has an input connected."""
+        if reslice is not None and reslice.GetInput() is not None:
+            reslice.Update()
+
     def refresh_overlay(self, label_or_name) -> None:
         """Redraw an overlay after its voxel data changed."""
         name = getattr(label_or_name, "name", label_or_name)
@@ -476,7 +482,7 @@ class SliceView(QWidget):
             data.astype(np.uint8).ravel(), deep=True)
         overlay["image"].GetPointData().SetScalars(arr)
         overlay["image"].Modified()
-        overlay["reslice"].Update()
+        self._safe_reslice_update(overlay["reslice"])
         self.render()
 
     def set_label_visibility(self, label_or_name, visible: bool) -> None:

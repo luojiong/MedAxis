@@ -22,6 +22,20 @@ if os.environ.get("MEDAXIS_SMOKE_NATIVE"):
     sys.exit(0 if ok else 1)
 
 
+def _mute_vtk_warnings() -> None:
+    """VTK's ErrorEvent stream is noisy (e.g. harmless '0 connections' reslice
+    messages) and alarming to users; keep errors for our own logging instead."""
+    try:
+        import vtk
+
+        vtk.vtkObject.GlobalWarningDisplayOff()
+    except Exception:
+        pass
+
+
+_mute_vtk_warnings()
+
+
 def main():
     # High DPI support
     QApplication.setHighDpiScaleFactorRoundingPolicy(
