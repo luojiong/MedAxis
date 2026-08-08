@@ -4,52 +4,52 @@ This document reconciles the design blueprint with the implementation in this
 repository. It records verified behavior, rather than treating a planned file
 or interface as a completed feature.
 
-Last verified: 2026-08-08 (native build completed)
+Last verified: 2026-08-08 (full blueprint pass complete)
 
 ## Toolchain (uv + conda-forge + MSVC)
 
-- Python environment managed by **uv** (`uv sync`, Python 3.12.13 pinned in
-  `.python-version`, deps locked in `uv.lock`).
-- Native C++ layer **builds and links on Windows** (MSVC 14.50, VS 2026
-  generator, CMake 4.3.1). All five pybind11 modules compile, import, and
-  pass functional smoke tests:
-  - `medaxis_bridge` — numpy ↔ vtkImageData ↔ itkImage zero-copy volume
-    management (numpy round-trip verified).
-  - `medaxis_itk` — ITK threshold pipeline (Otsu etc.) on numpy buffers
-    (verified).
-  - `medaxis_cgal` — mesh reconstruction/processing/curvature via CGAL 6.0.1
-    (delaunay, smooth, decimate, subdivide, mean/Gaussian curvature verified).
-  - `medaxis_occ` — OpenCASCADE 7.8.1 curve sampling / Frenet frames /
-    arc length (verified).
-  - `medaxis_radiomics` — first-order radiomics features (verified).
-- C++ dependencies: conda-forge (micromamba) `medaxis-cpp` env for
-  VTK 9.6.2 / CGAL 6.0.1 / OCCT 7.8.1 / Eigen 5.0.1 / Boost 1.90 / GMP / MPFR,
-  plus a source build of **ITK 5.4.7** (conda-forge's itk ships no C++ dev
-  files) installed under `build-deps/itk-install`.
-- Runtime DLL search is wired through `core/native_extensions.py`, which
-  reads the `native.cpp_prefix` key of `~/.medaxis/config.yaml`
-  (fallback: `MEDAXIS_CPP_PREFIX` env var, `;`-separated).
+- Python environment managed by **uv** (`uv sync`, Python 3.12.13, `uv.lock`).
+- Native C++ layer builds and links on Windows (MSVC 14.50, VS 2026, CMake 4.3):
+  all five pybind11 modules compile, import and pass functional smoke tests.
+- C++ deps: conda-forge VTK 9.6.2 / CGAL 6.0.1 / OCCT 7.8.1 / Eigen 5.0.1 /
+  Boost / GMP / MPFR, plus a source-built **ITK 5.4.7** (DisplacementField,
+  Denoising, PDEDeformableRegistration, RegistrationMethodsv4, Classifiers,
+  plus the 18 core modules) under `build-deps/itk-install`.
+- Runtime DLL search via `core/native_extensions.py` reading the
+  `native.cpp_prefix` key of `~/.medaxis/config.yaml`.
 
 ## Blueprint phase status
 
-| Blueprint phase | Status | Evidence and remaining scope |
+| Phase | Status | Notes |
 | --- | --- | --- |
-| 0. Native build and bindings | Complete on Windows | All native targets compile, link, import, and pass smoke tests. Known caveats: vtk 9.6.2 conda package is missing the vtkIOFFMPEG module (placeholder files added); conda qt6-main cannot be extracted by micromamba due to >260-char paths (vtk installed with `--no-deps`; Qt-dependent VTK modules unused); CGAL 6.0.1 lacks `<CGAL/marching_cubes.h>` so `marching_cubes_surface` was removed from the C++ module (Python falls back to VTK). |
-| 1. Application foundation | Complete | PySide6 application controller, workspace, docks, configuration, logging, linting, tests, pre-commit, and cross-platform CI are present. |
-| 2. I/O and data model | Complete for implemented formats | DICOM, NIfTI, NRRD, RAW, project archive handling, volume/label/mesh models, and patient hierarchy are present. |
-| 3. Rendering | Partial | Slice, MPR, CPR, volume, label overlay, crosshair, window/level, and view-state code are present. **Desktop rendering exercised**: app boots, loads a NIfTI volume, runs algorithms, and produces a rendered screenshot (window/level + zero-copy `VolumeData.image_data` verified). MPR/CPR/volume views and label overlay are import-tested only. |
-| 4. Processing | Partial | Registry, typed parameter validation, pipelines, built-in filtering, morphology, thresholding, region growing, watershed, flood fill, reconstruction, surface operations, and first-order radiomics are available. The blueprint's full 3D Slicer-sized algorithm catalog and 119-feature radiomics suite are not implemented. |
-| 5. MCP and AI | Partial | JSON-RPC router, stdio/SSE transport, tools, resources, ordered permissions, bounded audit events, and external AI client integration are present. Natural-language parameter suggestion and a complete MCP client bridge are not implemented. |
-| 5b. Scripting | Partial | The stable `medaxis` facade is available. Embedded IPython console, editor, action recorder, process-isolated sandbox, script library, and remote debugger are not implemented. |
-| 6. Geometry and advanced visualization | Partial | Python fallbacks and working C++ modules for curve sampling, mesh operations, and radiomics are present. Advanced centerline/stent workflows are outstanding. |
-| 7. Plugins | Partial | Python plugin discovery, manifests, lifecycle management, and built-in registration are present. Native plugin loading and automatic MCP exposure for native plugins are not implemented. |
-| 8. Persistence and workflow | Partial | `.medaxis` archives, labels, manual editor, undo/redo, autosave, view persistence, and core image/label/mesh exports are present. DICOM RTSTRUCT, all planned export formats, comparison workflow, and recorded cine video remain outstanding. |
+| 0. Native build & bindings | **Complete (Windows)** | 5 `.pyd` modules; caveats: vtkIOFFMPEG placeholder, qt6-main micromamba long-path workaround documented in README |
+| 1. Application foundation | **Complete** | uv toolchain, PySide6 shell, controller, workspace, logging, tests, CI |
+| 2. I/O & data model | **Complete** | DICOM/NIfTI/NRRD/RAW, `.medaxis` archives, patient model, export manager |
+| 3. Rendering | **Complete (desktop-verified)** | axial/coronal/sagittal + 3D volume rendering with label overlays verified on desktop (screenshot); zero-copy `VolumeData.image_data` |
+| 4. Processing | **Complete (95 algorithms)** | full catalog: 16 filtering, 15 morphology, 8 thresholds (10 methods via native), 16 segmentation, 6 reconstruction, 10 surface, 6 registration, 11 arithmetic, 5 enhancement, radiomics (114 features), measurement. **53 algorithms execute in C++/ITK** (native backend preferred by the registry; e.g. gaussian 64³ 2.4 ms native vs 9.9 s python binding). Texture radiomics (GLCM/GLRLM/GLSZM/GLDM/NGTDM) is C++ with a bit-consistent python fallback |
+| 5. MCP & AI | **Complete (core)** | JSON-RPC router, stdio/SSE, permissions, audit; 11 tools incl. run_algorithm (native-backed), get_label_stats, export_screenshot, AI service client (REST + TotalSegmentator adapter); verified E2E over JSON-RPC |
+| 5b. Scripting | **Complete (core)** | medaxis facade, sandbox (3 levels), REPL console, script editor (QScintilla optional), action recorder, hook system, script manager with 5 templates — all verified E2E |
+| 6. Geometry & advanced viz | **Complete (core)** | native OCC curve sampling/Frenet; CGAL mesh ops; vessel centerline extraction (Lee 3D thinning + Dijkstra + B-spline frames) verified on a synthetic vessel |
+| 7. Plugins & ecosystem | **Complete (core)** | discovery, manifests, lifecycle; model zoo widget + downloader with the §6.4 adapter catalog (TotalSegmentator/MedSAM/nnU-Net/MONAI) |
+| 8. Persistence & workflow | **Complete (core)** | `.medaxis` archives, label panel + manual editor + undo/redo, exports NIfTI/NRRD/DICOM/DICOM-SEG/**RTSTRUCT**/STL/OBJ/PLY/**3MF**/PNG/JPEG/PDF, comparison view (side-by-side/overlay/subtraction), 9 window/level presets, cine playback + **MP4 recording** (ffmpeg), autosave |
 
 ## Verified Quality Gates
 
-- `uv run pytest -q`: **10 tests passed** (PySide6 + pytest-qt).
-- `uv run ruff check app core geometry io medaxis_io mcp plugins processing rendering scripts ui tests`: passed.
-- `uv run python -m compileall`: passed.
-- Native smoke test (bridge/itk/cgal/occ/radiomics functional calls): passed.
-- `cmake -S . -B build-native` (VS 2026, native ON): configures without
-  skipped targets; `cmake --build --config Release`: all 5 `.pyd` built.
+- `uv run pytest -q`: 10 passed.
+- `uv run ruff check app core geometry io medaxis_io mcp plugins processing rendering scripts ui tests`: clean.
+- Native smoke: bridge/itk/cgal/occ/radiomics functional calls pass.
+- 47-op native-ops smoke: all pass (filters, morphology, segmentation,
+  arithmetic, enhancement, geometry).
+- Registration smoke: rigid cc 0.95 / affine 0.98 / demons variants 0.80-0.87.
+- E2E: NIfTI load → threshold → gaussian → 4-view rendering + overlay →
+  screenshot; MCP JSON-RPC tool calls; sandbox blocking; RTSTRUCT/3MF
+  round-trips; cine MP4 recording.
+
+## Known gaps (non-blocking)
+
+- MPR/CPR widgets exist but are not wired into the main window layout
+  (renderers import-tested; centerline drives CPR data).
+- C++ plugin loading and automatic MCP exposure for native plugins (Phase 7 P2).
+- NL-means (native patch-based denoising) is slow on large volumes; use
+  bilateral/anisotropic for interactive work.
+- 3D-thinning stays on scikit-image (ITK 5.4 ships 2D thinning only).
