@@ -112,6 +112,34 @@ class AlgorithmRegistry:
             ).validate_params(params or {})
             if progress_callback is not None:
                 progress_callback(0.0)
+
+            # Prefer the compiled C++/ITK backend when available; the Python
+            # run_func is only a fallback (e.g. algorithms without a native
+            # implementation).  Any native failure (bad params, unsupported
+            # kind, ...) falls back to the Python implementation.
+            from .native_backend import run_native
+
+            try:
+                native_result = run_native(algo.id, input_data, validated_params)
+            except Exception:
+                native_result = None
+            if native_result is not None:
+                elapsed = time.perf_counter() - start
+                if progress_callback is not None:
+                    progress_callback(1.0)
+                return AlgorithmResult(
+                    algorithm_id=algo_id,
+                    label_data=native_result if algo.category in (AlgorithmCategory.THRESHOLD,
+                                                                  AlgorithmCategory.SEGMENTATION,
+                                                                  AlgorithmCategory.MORPHOLOGY)
+                    else None,
+                    volume_data=None if algo.category in (AlgorithmCategory.THRESHOLD,
+                                                          AlgorithmCategory.SEGMENTATION,
+                                                          AlgorithmCategory.MORPHOLOGY)
+                    else native_result,
+                    execution_time_sec=elapsed,
+                )
+
             result = algo.run_func(
                 **{algo.input_parameter: input_data},
                 params=validated_params,

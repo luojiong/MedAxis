@@ -10,6 +10,7 @@
 #include <pybind11/pybind11.h>
 
 #include "segmentation/medAxisThresholdFilter.h"
+#include "native_ops.h"
 
 namespace py = pybind11;
 
@@ -110,4 +111,28 @@ PYBIND11_MODULE(medaxis_itk, module)
         py::arg("histogram_bins") = 128,
         py::arg("adaptive_radius") = 5,
         "Threshold a 3-D float array with the MedAxis ITK threshold filter.");
+
+    // ---- Native ops: every algorithm executes in C++/ITK ----
+    module.def("filter_3d", &medaxis::native_ops::filter_3d,
+               py::arg("values"), py::arg("kind"), py::arg("params") = py::dict(),
+               "Run an ITK filtering algorithm (gaussian, median, bilateral, ...).");
+    module.def("morphology_3d", &medaxis::native_ops::morphology_3d,
+               py::arg("values"), py::arg("kind"), py::arg("params") = py::dict(),
+               "Run an ITK morphology algorithm (binary/grayscale erode, dilate, ...).");
+    module.def("segment_3d", &medaxis::native_ops::segment_3d,
+               py::arg("values"), py::arg("kind"), py::arg("params") = py::dict(),
+               "Run an ITK segmentation algorithm (watershed, level set, kmeans, ...).");
+    module.def("arith_3d", &medaxis::native_ops::arith_3d,
+               py::arg("a"), py::arg("b"), py::arg("kind"), py::arg("params") = py::dict(),
+               "Run an ITK arithmetic algorithm (add, subtract, mask, invert, ...).");
+    module.def("enhance_3d", &medaxis::native_ops::enhance_3d,
+               py::arg("values"), py::arg("kind"), py::arg("params") = py::dict(),
+               "Run an ITK enhancement algorithm (clahe, window_level, gamma, ...).");
+    module.def("geometry_3d", &medaxis::native_ops::geometry_3d,
+               py::arg("values"), py::arg("kind"), py::arg("params") = py::dict(),
+               "Run an ITK geometry algorithm (resample, crop, pad, flip, permute).");
+    module.def("register_pair", &medaxis::native_ops::register_pair,
+               py::arg("fixed"), py::arg("moving"), py::arg("kind"),
+               py::arg("params") = py::dict(),
+               "Register two volumes (rigid, affine, bspline, demons variants).");
 }

@@ -15,10 +15,13 @@ find_package(VTK 9.4 QUIET COMPONENTS
 find_package(ITK 5.4 QUIET COMPONENTS
     ITKCommon ITKImageFilterBase ITKImageIntensity ITKImageGradient
     ITKImageGrid ITKThresholding ITKStatistics
-    ITKRegionGrowing ITKWatersheds ITKLevelSets
+    ITKRegionGrowing ITKWatersheds ITKLevelSets ITKFastMarching
     ITKMathematicalMorphology ITKBinaryMathematicalMorphology
     ITKConnectedComponents ITKDistanceMap ITKRegistrationCommon
     ITKSmoothing ITKAnisotropicSmoothing
+    ITKDenoising ITKClassifiers
+    ITKDisplacementField ITKPDEDeformableRegistration
+    ITKRegistrationMethodsv4 ITKOptimizers ITKOptimizersv4
 )
 find_package(CGAL 5.6 QUIET)
 # conda-forge eigen 5.x: 版本宏移到 Eigen/Version, CGAL 的 FindEigen3 模块解析失败,

@@ -40,6 +40,8 @@ add_custom_target(medaxis_itk_ext_headers SOURCES ${MEDAXIS_ITK_EXT_HEADERS})
 
 pybind11_add_module(medaxis_itk
     pybind11_module.cpp
+    native_ops_filtering.cpp
+    native_ops_segmentation.cpp
 )
 
 target_include_directories(medaxis_itk PRIVATE

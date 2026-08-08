@@ -130,3 +130,85 @@ def register_segmentation_algorithms():
         ],
         run_func=_flood_fill,
     ))
+
+
+def _histogram_threshold(method: str, label: str):
+    """Factory for single-histogram threshold methods (native-backed)."""
+
+    def run(volume, params, progress_callback=None):
+        from core.native_extensions import get_native_module
+        import numpy as np
+        native = get_native_module("medaxis_itk")
+        bins = int(params.get("bins", 128))
+        if native is not None:
+            result = native.threshold_3d(
+                volume.to_numpy().astype(np.float32),
+                method=method,
+                histogram_bins=bins,
+            )
+            return AlgorithmResult(algorithm_id=method, label_data=result)
+        # Python fallback: ITK filter of the same family.
+        import itk
+        filter_name = {
+            "adaptive": None,
+            "isodata": "isodata_threshold_image_filter",
+            "max_entropy": "maximum_entropy_threshold_image_filter",
+            "moments": "moments_threshold_image_filter",
+            "renyi_entropy": "renyi_entropy_threshold_image_filter",
+            "huang": "huang_threshold_image_filter",
+            "intermodes": "intermodes_threshold_image_filter",
+            "li": "li_threshold_image_filter",
+        }[method]
+        if filter_name is None:
+            raise RuntimeError("adaptive threshold requires the native medaxis_itk module")
+        itk_image = volume.to_itk_image()
+        result = getattr(itk, filter_name)(itk_image, number_of_histogram_bins=bins)
+        return AlgorithmResult(algorithm_id=method, label_data=itk.array_from_image(result))
+
+    run.__name__ = f"_{method}"
+    return run
+
+
+def _adaptive_threshold(volume, params, progress_callback=None):
+    """Local-mean adaptive threshold (Bradley)."""
+    from core.native_extensions import get_native_module
+    import numpy as np
+    native = get_native_module("medaxis_itk")
+    radius = int(params.get("radius", 5))
+    if native is not None:
+        result = native.threshold_3d(
+            volume.to_numpy().astype(np.float32),
+            method="adaptive",
+            adaptive_radius=radius,
+        )
+        return AlgorithmResult(algorithm_id="adaptive", label_data=result)
+    raise RuntimeError("adaptive threshold requires the native medaxis_itk module")
+
+
+_THRESHOLD_METHODS = [
+    ("adaptive", "Adaptive Threshold", "Local-mean (Bradley) adaptive thresholding.",
+     [AlgorithmParameter("radius", "int", "Local Radius", default=5, min_val=1, max_val=20)]),
+    ("isodata", "IsoData Threshold", "IsoData automatic threshold (Ridler-Calvard).",
+     [AlgorithmParameter("bins", "int", "Histogram Bins", default=128, min_val=16, max_val=1024)]),
+    ("max_entropy", "Maximum Entropy", "Maximum entropy threshold.",
+     [AlgorithmParameter("bins", "int", "Histogram Bins", default=128, min_val=16, max_val=1024)]),
+    ("moments", "Moments Threshold", "Moment-preserving threshold.",
+     [AlgorithmParameter("bins", "int", "Histogram Bins", default=128, min_val=16, max_val=1024)]),
+    ("renyi_entropy", "Renyi Entropy", "Renyi entropy threshold.",
+     [AlgorithmParameter("bins", "int", "Histogram Bins", default=128, min_val=16, max_val=1024)]),
+    ("huang", "Huang Threshold", "Huang fuzzy threshold.",
+     [AlgorithmParameter("bins", "int", "Histogram Bins", default=128, min_val=16, max_val=1024)]),
+    ("intermodes", "Intermodes Threshold", "Intermodes (histogram valley) threshold.",
+     [AlgorithmParameter("bins", "int", "Histogram Bins", default=128, min_val=16, max_val=1024)]),
+    ("li", "Li Threshold", "Li minimum cross-entropy threshold.",
+     [AlgorithmParameter("bins", "int", "Histogram Bins", default=128, min_val=16, max_val=1024)]),
+]
+
+
+def register_histogram_thresholds():
+    for method, name, desc, params in _THRESHOLD_METHODS:
+        run = _adaptive_threshold if method == "adaptive" else _histogram_threshold(method, name)
+        _registry.register(AlgorithmDefinition(
+            id=method, name=name, category=AlgorithmCategory.THRESHOLD,
+            description=desc, parameters=params, run_func=run,
+        ))

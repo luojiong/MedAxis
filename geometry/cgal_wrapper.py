@@ -155,3 +155,114 @@ def _build_polydata(vertices: np.ndarray, faces: np.ndarray):
         cells.InsertNextCell(tri)
     poly.SetPolys(cells)
     return poly
+
+
+def poisson_reconstruct(points: np.ndarray, normals: np.ndarray,
+                        smoothing_angle: float = 30.0) -> dict:
+    """Poisson surface reconstruction (native CGAL backend)."""
+    native = get_native_module("medaxis_cgal")
+    if native is not None:
+        try:
+            mesh = native.poisson_reconstruct(
+                np.asarray(points, dtype=float).reshape(-1).tolist(),
+                np.asarray(normals, dtype=float).reshape(-1).tolist(),
+                float(smoothing_angle),
+            )
+            vertices, faces = _mesh_arrays(mesh)
+            return {"vertices": vertices, "faces": faces}
+        except (RuntimeError, ValueError, TypeError):
+            pass
+    raise RuntimeError("poisson_reconstruct requires the medaxis_cgal native module")
+
+
+def advancing_front_reconstruct(points: np.ndarray) -> dict:
+    """Advancing-front reconstruction from an unoriented point cloud."""
+    native = get_native_module("medaxis_cgal")
+    if native is not None:
+        try:
+            mesh = native.advancing_front_reconstruct(
+                np.asarray(points, dtype=float).reshape(-1).tolist())
+            vertices, faces = _mesh_arrays(mesh)
+            return {"vertices": vertices, "faces": faces}
+        except (RuntimeError, ValueError, TypeError):
+            pass
+    raise RuntimeError("advancing_front_reconstruct requires the medaxis_cgal native module")
+
+
+def delaunay_tetrahedralize(points: np.ndarray) -> dict:
+    """3D Delaunay tetrahedralization (native CGAL backend)."""
+    native = get_native_module("medaxis_cgal")
+    if native is not None:
+        try:
+            mesh = native.delaunay_triangulate(
+                np.asarray(points, dtype=float).reshape(-1).tolist())
+            return {
+                "vertices": np.asarray(mesh.vertices, dtype=float).reshape(-1, 3),
+                "tets": np.asarray(mesh.tets, dtype=np.int64).reshape(-1, 4),
+            }
+        except (RuntimeError, ValueError, TypeError):
+            pass
+    raise RuntimeError("delaunay_tetrahedralize requires the medaxis_cgal native module")
+
+
+def mesh_fill_holes(vertices: np.ndarray, faces: np.ndarray,
+                    max_hole_edges: int = 0) -> tuple[np.ndarray, np.ndarray]:
+    """Fill boundary holes of a mesh (native CGAL backend)."""
+    native = get_native_module("medaxis_cgal")
+    if native is not None:
+        try:
+            output = native.mesh_fill_holes(
+                _native_mesh(native, vertices, faces), int(max_hole_edges))
+            return _mesh_arrays(output)
+        except (RuntimeError, ValueError, TypeError):
+            pass
+    raise RuntimeError("mesh_fill_holes requires the medaxis_cgal native module")
+
+
+def mesh_boolean(a_vertices, a_faces, b_vertices, b_faces,
+                 operation: str = "union") -> tuple[np.ndarray, np.ndarray]:
+    """Mesh boolean operation: union / intersect / difference (native CGAL)."""
+    native = get_native_module("medaxis_cgal")
+    if native is not None:
+        try:
+            ma = _native_mesh(native, a_vertices, a_faces)
+            mb = _native_mesh(native, b_vertices, b_faces)
+            if operation == "union":
+                output = native.mesh_boolean_union(ma, mb)
+            elif operation == "intersect":
+                output = native.mesh_boolean_intersect(ma, mb)
+            else:
+                output = native.mesh_boolean_diff(ma, mb)
+            return _mesh_arrays(output)
+        except (RuntimeError, ValueError, TypeError):
+            pass
+    raise RuntimeError("mesh_boolean requires the medaxis_cgal native module")
+
+
+def mesh_subdivide(vertices: np.ndarray, faces: np.ndarray,
+                   scheme: str = "loop", iterations: int = 1) -> tuple[np.ndarray, np.ndarray]:
+    """Subdivide a mesh (Loop / Catmull-Clark, native CGAL backend)."""
+    native = get_native_module("medaxis_cgal")
+    if native is not None:
+        try:
+            mode = (native.SubdivideScheme.CATMULL_CLARK if scheme == "catmull_clark"
+                    else native.SubdivideScheme.LOOP)
+            output = native.mesh_subdivide(
+                _native_mesh(native, vertices, faces), mode, int(iterations))
+            return _mesh_arrays(output)
+        except (RuntimeError, ValueError, TypeError):
+            pass
+    raise RuntimeError("mesh_subdivide requires the medaxis_cgal native module")
+
+
+def mesh_surface_stats(vertices: np.ndarray, faces: np.ndarray) -> dict:
+    """Surface area and enclosed volume via VTK mass properties."""
+    import vtk
+    poly = _build_polydata(vertices, faces)
+    mass = vtk.vtkMassProperties()
+    mass.SetInputData(poly)
+    mass.Update()
+    return {
+        "surface_area_mm2": mass.GetSurfaceArea(),
+        "volume_mm3": mass.GetVolume(),
+    }
