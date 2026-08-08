@@ -67,3 +67,24 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# uv & native build artifacts
+.venv/
+.env
+build-deps/
+medaxis/_native/
+
+# python tooling caches
+.pytest_cache/
+.ruff_cache/
+medaxis.egg-info/
+
+# pi session exports
+pi-session-*.html
+
+# stray cmake probe outputs
+out3/
+out5/
+out4/
+__pycache__/
+*.py[cod]

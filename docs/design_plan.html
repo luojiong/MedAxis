@@ -1,0 +1,3065 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MedAxis — 医疗影像渲染与分割平台 · 设计蓝图</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --text-muted: #8b949e;
+    --accent: #58a6ff; --accent2: #3fb950; --warn: #d2991d;
+    --danger: #f85149; --code-bg: #1c2129; --radius: 10px;
+  }
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.7; scroll-behavior: smooth;
+  }
+  nav {
+    position: sticky; top:0; z-index: 100;
+    background: #0d1117ee; backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border); padding: 0 32px;
+    display:flex; align-items:center; height: 56px; gap: 28px;
+  }
+  nav a { color: var(--text-muted); text-decoration:none; font-size:14px; font-weight:500; transition:.15s; }
+  nav a:hover { color: var(--accent); }
+  nav .logo { font-size:18px; font-weight:700; color: var(--text); margin-right:auto; letter-spacing:-0.5px; }
+  nav .logo span { color: var(--accent); }
+  .container { max-width: 1200px; margin:0 auto; padding: 40px 32px 80px; }
+  h1 { font-size: 2.4rem; font-weight: 700; margin-bottom: 8px; letter-spacing: -1px; }
+  h1 .sub { display:block; font-size:1rem; color:var(--text-muted); font-weight:400; margin-top:4px; }
+  h2 { font-size: 1.5rem; font-weight: 600; margin: 48px 0 20px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1.15rem; font-weight: 600; margin: 28px 0 12px; color: var(--accent); }
+  h4 { font-size: 1rem; margin: 16px 0 8px; }
+  p { margin: 10px 0; color: var(--text-muted); }
+  ul, ol { margin: 8px 0 8px 24px; color: var(--text-muted); }
+  li { margin: 4px 0; }
+  .card-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin: 20px 0; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+  .card h3 { margin-top:0; font-size:1rem; }
+  .card .icon { font-size:1.6rem; margin-bottom:8px; }
+  .mermaid-box { background: #fff; border-radius: var(--radius); padding: 24px; margin: 20px 0; border: 1px solid var(--border); overflow-x: auto; }
+  .mermaid-box.dark { background: #1a1e26; }
+  .phase {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; margin: 20px 0; border-left: 4px solid var(--accent);
+  }
+  .phase.p1 { border-left-color: var(--accent2); }
+  .phase.p2 { border-left-color: var(--accent); }
+  .phase.p3 { border-left-color: var(--warn); }
+  .phase.p4 { border-left-color: #a371f7; }
+  .phase.p5 { border-left-color: var(--danger); }
+  .phase h3 { margin-top:0; }
+  .phase .meta { font-size:13px; color: var(--text-muted); margin-bottom:12px; }
+  .task-list { list-style:none; margin:0; padding:0; }
+  .task-list li { display:flex; align-items:flex-start; gap:10px; padding: 8px 0; border-bottom: 1px solid #ffffff0a; }
+  .task-list li:last-child { border-bottom: none; }
+  .check { width:18px; height:18px; border:2px solid var(--border); border-radius:4px; flex-shrink:0; margin-top:2px; }
+  .check.done { background: var(--accent2); border-color: var(--accent2); }
+  .task-prio { font-size:11px; padding:1px 8px; border-radius:10px; flex-shrink:0; }
+  .task-prio.high { background:#f8514922; color:var(--danger); }
+  .task-prio.med  { background:#d2991d22; color:var(--warn); }
+  .task-prio.low  { background:#58a6ff22; color:var(--accent); }
+  table { width:100%; border-collapse:collapse; margin:16px 0; font-size:14px; }
+  th, td { padding:10px 14px; text-align:left; border-bottom:1px solid var(--border); }
+  th { color: var(--accent); font-weight:600; }
+  td { color: var(--text-muted); }
+  code {
+    background: var(--code-bg); padding:2px 6px; border-radius:4px;
+    font-family:'JetBrains Mono','Fira Code',monospace; font-size:13px; color: var(--accent2);
+  }
+  pre {
+    background: var(--code-bg); border-radius: var(--radius);
+    padding: 16px 20px; overflow-x: auto; font-size:13px; line-height:1.5; margin:12px 0; border: 1px solid var(--border);
+  }
+  pre code { background:none; padding:0; color:var(--text); }
+  .lang-bar {
+    display:flex; gap:8px; margin:12px 0; flex-wrap:wrap;
+  }
+  .lang-tag {
+    font-size:12px; padding:3px 12px; border-radius:12px; font-weight:600;
+  }
+  .lang-tag.py { background:#4584b622; color:#ffde57; border:1px solid #ffde5744; }
+  .lang-tag.cpp { background:#659ad222; color:#659ad2; border:1px solid #659ad244; }
+  .lang-tag.cmake { background:#649f4b22; color:#649f4b; border:1px solid #649f4b44; }
+  footer { text-align:center; color: var(--text-muted); font-size:13px; padding:40px 0; border-top:1px solid var(--border); }
+  .highlight-box {
+    background: #f8514911; border: 1px solid #f8514933; border-radius: var(--radius);
+    padding: 16px 20px; margin: 16px 0;
+  }
+  .highlight-box.info { background: #58a6ff11; border-color: #58a6ff33; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="#" class="logo">Med<span>Axis</span></a>
+  <a href="#overview">总览</a>
+  <a href="#lang-strategy">Python/C++ 策略</a>
+  <a href="#architecture">架构</a>
+  <a href="#dataflow">数据流</a>
+  <a href="#algorithms">算法目录</a>
+  <a href="#ai-integration">AI API 集成</a>
+  <a href="#mcp">MCP 协议</a>
+  <a href="#scripting">Script 模块</a>
+  <a href="#persistence">工程闭环</a>
+  <a href="#todo">开发计划</a>
+  <a href="#directory">目录结构</a>
+  <a href="#roadmap">路线图</a>
+  <a href="#tech-stack">技术选型</a>
+  <a href="#summary">文件统计</a>
+</nav>
+
+<div class="container">
+
+<!-- ================================================================== -->
+<h1>MedAxis 设计蓝图
+  <span class="sub">基于 Python Qt · VTK C++ · ITK C++ · OpenCASCADE C++ · CGAL C++ 的医疗影像渲染与分割平台</span>
+</h1>
+
+<!-- ================================================================== -->
+<section id="overview">
+<h2>1. 项目愿景</h2>
+<div class="card-grid">
+<div class="card">
+  <div class="icon">🩻</div>
+  <h3>全格式影像支持</h3>
+  <p>DICOM 单文件 / 文件夹 / 批量导入、NIfTI (.nii/.nii.gz)、NRRD、MetaImage (.mha/.mhd)、RAW 等标准医学影像格式。</p>
+</div>
+<div class="card">
+  <div class="icon">🧠</div>
+  <h3>高性能 MRP 渲染</h3>
+  <p>标准 MPR（轴/冠/矢）、任意斜面 Plane Reslice、Curved Planar Reformation (CPR)，核心算法用 C++ 实现保证实时交互。</p>
+</div>
+<div class="card">
+  <div class="icon">🔬</div>
+  <h3>医学图像分割</h3>
+  <p>集成 ITK C++ 原生管线（阈值、区域生长、Level Set、分水岭），自定义 C++ 分割算法可无缝注册。</p>
+</div>
+<div class="card">
+  <div class="icon">🤖</div>
+  <h3>AI-Native · MCP 协议</h3>
+  <p>内建 MCP Server，将影像加载、分割、测量等操作抽象为 AI 可调用的 Tools，方便对接大模型 Agent。</p>
+</div>
+<div class="card">
+  <div class="icon">📐</div>
+  <h3>几何引擎 (C++)</h3>
+  <p>OpenCASCADE 提供精确 B-Spline/NURBS 曲线用于 CPR 路径；CGAL 负责网格重建与计算几何，pybind11 封装。</p>
+</div>
+<div class="card">
+  <div class="icon">🧩</div>
+  <h3>Python/C++ 混合</h3>
+  <p>Python 负责 UI + 编排 + MCP；C++ 负责所有性能敏感计算。pybind11 + VTK/ITK 原生 wrapping 做零拷贝桥接。</p>
+</div>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="lang-strategy">
+<h2>2. Python / C++ 分工策略 ⚠️ 关键设计决策</h2>
+
+<div class="highlight-box info">
+  <strong>核心原则：</strong>Python 做"指挥官"，C++ 做"士兵"。所有重计算（渲染、滤波、分割、几何运算）都必须落在 C++ 侧；
+  Python 侧只负责 UI 交互、事件编排、MCP 协议、插件管理等轻量逻辑。
+</div>
+
+<h3>2.1 语言边界图</h3>
+<div class="mermaid-box dark">
+<div class="mermaid">
+graph TB
+    subgraph PYTHON["🐍 Python 层 (PySide6 + asyncio)"]
+        UI["Qt UI<br/>MainWindow · Panels · Views"]
+        APP["AppController<br/>事件调度 · 状态管理"]
+        IO["File I/O 入口<br/>pydicom · nibabel 元数据解析"]
+        MCP["MCP Server<br/>stdio/SSE · JSON-RPC"]
+        PLUGIN["Plugin Manager<br/>发现 · 注册 · 生命周期"]
+    end
+
+    subgraph BRIDGE["🔌 Python ↔ C++ 绑定层"]
+        B1["VTK Python Wrapping<br/>(vtk模块, 自动生成)"]
+        B2["ITK Python Wrapping<br/>(itk模块, 自动生成)"]
+        B3["pybind11 模块<br/>medaxis_native.pyd"]
+        B4["pythonocc-core<br/>(OCC 官方绑定)"]
+    end
+
+    subgraph CPP["⚡ C++ Native 层 (native/)"]
+        C1["native/vtk_ext/<br/>自定义 VTK Filter<br/>MedAxisResliceFilter"]
+        C2["native/itk_ext/<br/>自定义 ITK Filter<br/>MedAxisSegmentFilter"]
+        C3["native/cgal_ext/<br/>CGAL Mesh 模块<br/>MeshRecon · Curvature"]
+        C4["native/occ_ext/<br/>OCC 扩展<br/>CurveSampling · FrenetFrame"]
+        C5["native/bridge/<br/>共享内存桥接<br/>numpy ↔ vtkImageData ↔ itkImage"]
+    end
+
+    PYTHON --> BRIDGE
+    BRIDGE --> CPP
+
+    UI -.->|"信号槽"| APP
+    APP -->|"pybind11 call"| B3
+    APP -->|"import vtk"| B1
+    APP -->|"import itk"| B2
+    APP -->|"from OCC.Core import"| B4
+
+    B3 --> C2 & C3 & C4 & C5
+    B1 --> C1 & C5
+    B2 --> C2 & C5
+</div>
+</div>
+
+<h3>2.2 各层语言归属</h3>
+<table>
+  <tr><th>模块</th><th>语言</th><th>理由</th></tr>
+  <tr>
+    <td><code>app/</code> · <code>ui/</code> · <code>mcp/</code> · <code>plugins/</code></td>
+    <td><span class="lang-tag py">Python</span></td>
+    <td>Qt 事件循环、MCP 协议、插件发现都是 I/O 密集型，Python 完全胜任</td>
+  </tr>
+  <tr>
+    <td><code>io/</code> (文件解析)</td>
+    <td><span class="lang-tag py">Python</span></td>
+    <td>pydicom / nibabel 本身就是纯 Python，元数据解析不涉及性能瓶颈</td>
+  </tr>
+  <tr>
+    <td><code>core/</code> (数据模型)</td>
+    <td><span class="lang-tag py">Python</span> + <span class="lang-tag cpp">C++ bridge</span></td>
+    <td>ImageData 在 Python 侧为 numpy，但底层 buffer 由 C++ bridge 管理，确保与 VTK/ITK 共享内存</td>
+  </tr>
+  <tr>
+    <td><code>rendering/</code> (渲染)</td>
+    <td><span class="lang-tag py">Python</span> (编排) + <span class="lang-tag cpp">C++</span> (计算)</td>
+    <td>VTK 管线搭建在 Python 侧完成；<strong>自定义 Reslice / Volume 算法</strong>用 C++ 写 VTK Filter</td>
+  </tr>
+  <tr>
+    <td><code>processing/</code> (分割)</td>
+    <td><span class="lang-tag py">Python</span> (编排) + <span class="lang-tag cpp">C++</span> (计算)</td>
+    <td>ITK Pipeline 搭建在 Python 侧完成；<strong>自定义分割算法</strong>用 C++ 写 ITK Filter</td>
+  </tr>
+  <tr>
+    <td><code>geometry/</code> (几何)</td>
+    <td><span class="lang-tag cpp">C++</span> 为主 + <span class="lang-tag py">Python</span> 绑定</td>
+    <td>OCCT / CGAL 本身是 C++；Python 侧通过 pythonocc-core + pybind11 封装调用</td>
+  </tr>
+  <tr>
+    <td><code>native/</code> (整个目录)</td>
+    <td><span class="lang-tag cpp">C++</span> + <span class="lang-tag cmake">CMake</span></td>
+    <td>所有 C++ 源码、CMakeLists.txt、pybind11 绑定定义都在这里</td>
+  </tr>
+</table>
+
+<h3>2.3 C++ → Python 绑定方式总览</h3>
+<table>
+  <tr><th>C++ 库</th><th>绑定方式</th><th>产物</th><th>说明</th></tr>
+  <tr>
+    <td>自定义 VTK Filter</td>
+    <td>VTK 原生的 XML Wrapping + vtkModule</td>
+    <td><code>vtkMedAxisFiltersPython.so/.pyd</code></td>
+    <td>继承 vtkImageAlgorithm，注册到 VTK 模块系统即可被 Python import</td>
+  </tr>
+  <tr>
+    <td>自定义 ITK Filter</td>
+    <td>ITK 原生 WrapITK (SWIG/CastXML)</td>
+    <td><code>itkMedAxisFiltersPython.so/.pyd</code></td>
+    <td>继承 itk::ImageToImageFilter，通过 .wrap 文件声明接口</td>
+  </tr>
+  <tr>
+    <td>CGAL 扩展</td>
+    <td><strong>pybind11</strong> (手写绑定)</td>
+    <td><code>medaxis_cgal.cp310-win_amd64.pyd</code></td>
+    <td>CGAL 没有官方 Python 绑定；核心算法（网格重建、曲率）用 pybind11 暴露</td>
+  </tr>
+  <tr>
+    <td>OpenCASCADE 扩展</td>
+    <td>pythonocc-core 已提供</td>
+    <td>(直接使用 <code>OCC.Core</code>)</td>
+    <td>对于 pythonocc 未封装的 OCC 类，通过 C++ 扩展 + pybind11 补充</td>
+  </tr>
+  <tr>
+    <td>Zero-Copy Bridge</td>
+    <td><strong>pybind11</strong> + <code>py::buffer_info</code></td>
+    <td><code>medaxis_bridge.pyd</code></td>
+    <td>numpy ↔ vtkImageData ↔ itkImage 三者共享同一块内存，避免拷贝</td>
+  </tr>
+</table>
+</section>
+
+<!-- ================================================================== -->
+<section id="architecture">
+<h2>3. 系统架构总览</h2>
+
+<h3>3.1 分层架构图（含 C++ 层）</h3>
+<div class="mermaid-box dark">
+<div class="mermaid">
+graph TB
+    subgraph APP["🖥️ Application  (Python Qt)"]
+        Entry["main.py<br/>QApplication 入口"]
+        Controller["AppController<br/>中介者 / 全局事件总线"]
+        Workspace["Workspace<br/>多患者 Tab 管理"]
+        MainWin["MainWindow<br/>主窗口 + 布局"]
+    end
+
+    subgraph UI["🧩 UI Layer  (Python Qt)"]
+        DBBrowser["DICOM Browser<br/>患者/序列浏览"]
+        ViewContainer["ViewContainer<br/>2×2 / 自由布局"]
+        SliceView["SliceView<br/>2D 切片交互"]
+        VolumeView["VolumeView<br/>3D 体渲染"]
+        MPRView["MPRView<br/>MPR / CPR 视图"]
+        ToolPanel["ToolPanel<br/>工具栏 + 属性"]
+    end
+
+    subgraph CORE["📦 Data Core  (Python + C++ bridge)"]
+        ImageData["ImageData<br/>numpy buffer<br/>← C++ bridge 管理"]
+        VolumeData["VolumeData<br/>spacing · origin · direction"]
+        PatientModel["PatientModel<br/>DICOM 层级模型"]
+        Transform["Transform<br/>World ↔ Voxel"]
+    end
+
+    subgraph IO_PY["📁 I/O  (Python)"]
+        DicomReader["DICOM Reader<br/>pydicom + GDCM"]
+        NiftiReader["NIfTI Reader<br/>nibabel"]
+        SeriesBuilder["SeriesBuilder<br/>序列组装"]
+        FileManager["FileManager<br/>统一入口"]
+    end
+
+    subgraph RENDER_CPP["🎨 Rendering  (C++ VTK Filters + Python 编排)"]
+        VTKEngine["VTK Engine<br/>管线管理"]
+        VolRenderer["Volume Renderer<br/>GPU Ray Casting"]
+        SliceRenderer["Slice Renderer<br/>ImageActor 2D"]
+        MPRRenderer["MPR Renderer<br/>Plane Reslice"]
+        CPRRenderer["CPR Renderer<br/>Curve Reslice"]
+        CustomReslice["MedAxisResliceFilter<br/>📄 C++ vtkAlgorithm"]
+    end
+
+    subgraph PROC_CPP["⚙️ Processing  (C++ ITK Filters + Python 编排)"]
+        FilterPipe["Filter Pipeline<br/>平滑 · 梯度 · 形态学"]
+        Segment["Segmentation<br/>阈值 · 区域生长 · Level Set"]
+        CustomSeg["MedAxisSegmentFilter<br/>📄 C++ itkFilter"]
+        Register["Registration<br/>刚性 · 仿射 · 变形"]
+        LabelFilter["Label Processing<br/>连通域 · 统计"]
+    end
+
+    subgraph GEO_CPP["📐 Geometry  (C++ OCCT + CGAL + pybind11)"]
+        OCC["OpenCASCADE<br/>B-Spline/NURBS 曲线"]
+        CGALMesh["CGAL Mesh<br/>重建 · 曲率 · 最短路径"]
+        OCCBind["pythonocc-core<br/>OCC Python 绑定"]
+        CGALBind["medaxis_cgal.pyd<br/>pybind11 绑定"]
+    end
+
+    subgraph MCP["🤖 MCP Protocol  (Python)"]
+        MCPServer["MCP Server<br/>stdio / SSE"]
+        Tools["Tools Registry<br/>load · segment · measure"]
+        Resources["Resources<br/>patients · series · roi"]
+    end
+
+    subgraph NATIVE["🔧 C++ Native 层  (native/)"]
+        VTKExt["native/vtk_ext/<br/>📄 *.cpp · *.h · CMakeLists.txt"]
+        ITKExt["native/itk_ext/<br/>📄 *.cpp · *.h · CMakeLists.txt"]
+        CGALExt["native/cgal_ext/<br/>📄 *.cpp · *.h · CMakeLists.txt"]
+        OCCExt["native/occ_ext/<br/>📄 *.cpp · *.h · CMakeLists.txt"]
+        Bridge["native/bridge/<br/>📄 data_bridge.cpp · pybind11"]
+    end
+
+    Entry --> Controller
+    Controller --> Workspace
+    Workspace --> MainWin
+    MainWin --> DBBrowser & ViewContainer & ToolPanel
+    ViewContainer --> SliceView & VolumeView & MPRView
+
+    Controller --> FileManager
+    FileManager --> DicomReader & NiftiReader & SeriesBuilder
+    SeriesBuilder --> VolumeData
+
+    Controller --> VTKEngine
+    VTKEngine --> VolRenderer & SliceRenderer & MPRRenderer & CPRRenderer
+    MPRRenderer --> CustomReslice
+    CPRRenderer --> CustomReslice
+    CustomReslice --> VTKExt
+
+    Controller --> FilterPipe
+    FilterPipe --> Segment & Register
+    Segment --> CustomSeg
+    CustomSeg --> ITKExt
+
+    CPRRenderer --> OCCBind
+    CustomReslice --> OCCBind
+    OCCBind --> OCCExt
+    OCC --> OCCBind
+
+    Segment --> CGALBind
+    CGALBind --> CGALExt
+    CGALMesh --> CGALBind
+
+    Bridge --> VTKExt & ITKExt & CGALExt & OCCExt
+
+    MCPServer --> Tools & Resources
+    Controller --> MCPServer
+</div>
+</div>
+
+<h3>3.2 模块依赖矩阵（含语言标注）</h3>
+<table>
+  <tr><th>模块</th><th>语言</th><th>核心依赖</th><th>说明</th></tr>
+  <tr><td><code>app/</code></td><td><span class="lang-tag py">Python</span></td><td>Qt, ui, io, core</td><td>应用入口、生命周期</td></tr>
+  <tr><td><code>ui/</code></td><td><span class="lang-tag py">Python</span></td><td>Qt, rendering, core</td><td>视图/面板/交互</td></tr>
+  <tr><td><code>io/</code></td><td><span class="lang-tag py">Python</span></td><td>pydicom, nibabel, core</td><td>影像文件读写</td></tr>
+  <tr><td><code>core/</code></td><td><span class="lang-tag py">Python</span> + <span class="lang-tag cpp">bridge</span></td><td>numpy, native/bridge</td><td>数据模型，buffer 由 C++ bridge 管理</td></tr>
+  <tr><td><code>rendering/</code></td><td><span class="lang-tag py">Python</span> + <span class="lang-tag cpp">VTK</span></td><td>VTK, native/vtk_ext, core</td><td>3D/2D/MRP 渲染</td></tr>
+  <tr><td><code>processing/</code></td><td><span class="lang-tag py">Python</span> + <span class="lang-tag cpp">ITK</span></td><td>ITK, native/itk_ext, core</td><td>滤波、分割、配准</td></tr>
+  <tr><td><code>geometry/</code></td><td><span class="lang-tag py">Python</span> + <span class="lang-tag cpp">OCC/CGAL</span></td><td>OCC, CGAL, native/cgal_ext, native/occ_ext</td><td>曲线曲面、网格</td></tr>
+  <tr><td><code>native/</code></td><td><span class="lang-tag cpp">C++</span> + <span class="lang-tag cmake">CMake</span></td><td>VTK, ITK, CGAL, OCC, pybind11</td><td>全部 C++ 计算核心</td></tr>
+  <tr><td><code>mcp/</code></td><td><span class="lang-tag py">Python</span></td><td>core, processing, rendering</td><td>AI 协议接口</td></tr>
+  <tr><td><code>plugins/</code></td><td><span class="lang-tag py">Python</span></td><td>importlib, pkgutil</td><td>插件发现与加载</td></tr>
+</table>
+
+<h3>3.3 C++ 编译产物与 Python 导入映射</h3>
+<table>
+  <tr><th>C++ 源文件</th><th>编译产物</th><th>Python 导入</th></tr>
+  <tr>
+    <td><code>native/vtk_ext/medAxisResliceFilter.cxx</code></td>
+    <td><code>vtkMedAxisFiltersPython.pyd</code></td>
+    <td><code>from vtkMedAxisFiltersPython import vtkMedAxisResliceFilter</code></td>
+  </tr>
+  <tr>
+    <td><code>native/itk_ext/medAxisSegmentFilter.cxx</code></td>
+    <td><code>itkMedAxisFiltersPython.pyd</code></td>
+    <td><code>import itk; f = itk.MedAxisSegmentFilter.New()</code></td>
+  </tr>
+  <tr>
+    <td><code>native/cgal_ext/*.cpp</code> (pybind11)</td>
+    <td><code>medaxis_cgal.pyd</code></td>
+    <td><code>from medaxis_cgal import mesh_reconstruct, curvature</code></td>
+  </tr>
+  <tr>
+    <td><code>native/occ_ext/*.cpp</code> (pybind11)</td>
+    <td><code>medaxis_occ.pyd</code></td>
+    <td><code>from medaxis_occ import sample_curve, frenet_frame</code></td>
+  </tr>
+  <tr>
+    <td><code>native/bridge/data_bridge.cpp</code> (pybind11)</td>
+    <td><code>medaxis_bridge.pyd</code></td>
+    <td><code>from medaxis_bridge import DataBridge, share_with_vtk, share_with_itk</code></td>
+  </tr>
+</table>
+</section>
+
+<!-- ================================================================== -->
+<section id="dataflow">
+<h2>4. 核心数据流</h2>
+
+<h3>4.1 影像加载全链路（Python → C++ bridge）</h3>
+<div class="mermaid-box dark">
+<div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor User
+    participant UI as DICOM Browser (Py)
+    participant FM as FileManager (Py)
+    participant DR as DICOM Reader (Py)
+    participant SB as SeriesBuilder (Py)
+    participant BR as DataBridge (C++ pybind11)
+    participant VD as VolumeData (Py+numpy)
+    participant VE as VTK Engine (C++→Py)
+    participant SR as SliceRenderer (C++)
+
+    User->>UI: 拖拽 / 打开文件 / 文件夹
+    UI->>FM: FileManager.open(paths)
+    FM->>DR: pydicom.parse() 解析元数据
+    DR-->>FM: DICOM 对象列表
+    FM->>SB: 按 SeriesInstanceUID 分组排序
+    SB-->>FM: 排序后的切片列表
+    FM->>BR: DataBridge.create_volume(slices, spacing, origin, direction)
+    Note over BR: C++ 分配连续内存<br/>构造 vtkImageData + itkImage<br/>导出 numpy buffer_info
+    BR-->>VD: numpy array (共享内存, 零拷贝)
+    VD-->>FM: VolumeData 就绪
+    FM-->>UI: VolumeData (信号)
+
+    UI->>VE: 注册 VolumeData → 获取已有 vtkImageData
+    Note over VE: 直接使用 Bridge 创建的 vtkImageData<br/>无需再拷贝
+    VE->>SR: 绑定 ImageActor → 渲染
+    SR-->>UI: 显示
+</div>
+</div>
+
+<h3>4.2 Plane Reslice (MPR) — C++ 核心</h3>
+<div class="mermaid-box dark">
+<div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor User
+    participant MV as MPRView (Py)
+    participant MR as MPRRenderer (Py)
+    participant RF as MedAxisResliceFilter (C++)
+    participant VI as vtkImageData (C++)
+    participant GPU as GPU Texture
+
+    User->>MV: 旋转/平移切割平面
+    MV->>MR: setResliceAxes(4×4 matrix)
+    MR->>RF: SetResliceAxes(matrix)
+    Note over RF: C++ 继承 vtkImageAlgorithm<br/>RequestData() 中执行三线性插值<br/>SIMD 加速采样
+    RF->>VI: 从原始 Volume 采样
+    VI->>GPU: 上传 3D Texture
+    GPU-->>RF: GPU 插值 → 输出切面
+    RF-->>MR: vtkImageData (resliced slice)
+    MR-->>MV: 更新 ImageActor → 显示
+</div>
+</div>
+
+<h3>4.3 Curve Reslice (CPR) — C++ 全链路</h3>
+<div class="mermaid-box dark">
+<div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor User
+    participant MV as MPRView (Py)
+    participant OCC as OpenCASCADE (C++ via pythonocc)
+    participant OccExt as medaxis_occ (C++ pybind11)
+    participant RF as MedAxisResliceFilter (C++)
+    participant VI as vtkImageData (C++)
+
+    User->>MV: 在视图上绘制/拾取曲线路径
+    MV->>OCC: 构造 Geom_BSplineCurve (控制点插值)
+    OCC-->>MV: 曲线对象
+    MV->>OccExt: sample_curve(curve, num_samples=200)
+    Note over OccExt: C++: 等弧长重参数化<br/>Frenet-Serret 计算法向量/副法向量<br/>生成采样点列 + 局部坐标系
+    OccExt-->>MV: points[N], normals[N], binormals[N]
+    MV->>RF: ResliceAlongCurve(points, normals, binormals, thickness)
+    Note over RF: C++: 逐段构造正交切面<br/>GPU 纹理采样<br/>拼接为展开的 CPR 图像
+    RF-->>MV: 拉直/拉伸 CPR 图像
+</div>
+</div>
+
+<h3>4.4 分割管线 — ITK C++ + CGAL</h3>
+<div class="mermaid-box dark">
+<div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor User
+    participant UI as ToolPanel (Py)
+    participant PS as ProcessingService (Py)
+    participant Seg as MedAxisSegmentFilter (C++)
+    participant CGAL as medaxis_cgal (C++ pybind11)
+    participant VR as VolumeRenderer (Py+C++)
+
+    User->>UI: 选择 ROI → 算法 → 执行
+    UI->>PS: run_segmentation(volume, roi, method, params)
+    PS->>Seg: 构建 ITK Pipeline → Update()
+    Note over Seg: C++ ITK Filter:<br/>Smoothing → Gradient → Watershed/LevelSet
+    Seg-->>PS: LabelMap (共享内存 numpy)
+    PS->>CGAL: label_to_mesh(labelmap, spacing)
+    Note over CGAL: C++ CGAL:<br/>Marching Cubes → 网格简化 → 平滑
+    CGAL-->>PS: Surface Mesh (vertices + faces)
+    PS-->>UI: LabelMap + Mesh
+    UI->>VR: 叠加渲染分割结果
+</div>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="algorithms">
+<h2>5. 算法全景目录（对标 3D Slicer）</h2>
+
+<div class="highlight-box info">
+  <strong>设计原则：</strong>本平台目标覆盖 3D Slicer 所支持的全部图像算法。
+  Python 侧提供统一的 <code>AlgorithmRegistry</code> 接口注册；每个算法底层由 C++ ITK Filter 或 C++ pybind11 模块实现。
+  所有算法均可通过 UI 面板调用，也通过 MCP Tool 暴露给 AI Agent。
+</div>
+
+<!-- 5.1 滤波算法 -->
+<h3>5.1 图像滤波 (Image Filtering)</h3>
+<table>
+  <tr><th>算法</th><th>C++ 实现</th><th>关键参数</th><th>对标 3D Slicer</th></tr>
+  <tr>
+    <td><strong>Gaussian Smoothing</strong></td>
+    <td><code>itk::SmoothingRecursiveGaussianImageFilter</code></td>
+    <td>Sigma (各向同性/各向异性)</td>
+    <td>Gaussian Blur</td>
+  </tr>
+  <tr>
+    <td><strong>Median Filtering</strong></td>
+    <td><code>itk::MedianImageFilter</code></td>
+    <td>Kernel Radius [x,y,z]</td>
+    <td>Median Filter</td>
+  </tr>
+  <tr>
+    <td><strong>Anisotropic Diffusion</strong></td>
+    <td><code>itk::GradientAnisotropicDiffusionImageFilter</code> / <code>itk::CurvatureAnisotropicDiffusionImageFilter</code></td>
+    <td>Iterations, TimeStep, Conductance</td>
+    <td>Anisotropic Diffusion (Perona-Malik)</td>
+  </tr>
+  <tr>
+    <td><strong>Bilateral Filter</strong></td>
+    <td><code>itk::BilateralImageFilter</code></td>
+    <td>DomainSigma, RangeSigma</td>
+    <td>Bilateral Filter</td>
+  </tr>
+  <tr>
+    <td><strong>Gradient Magnitude</strong></td>
+    <td><code>itk::GradientMagnitudeRecursiveGaussianImageFilter</code> / <code>itk::SobelEdgeDetectionImageFilter</code></td>
+    <td>Sigma / 方向</td>
+    <td>Gradient Magnitude / Sobel</td>
+  </tr>
+  <tr>
+    <td><strong>Laplacian</strong></td>
+    <td><code>itk::LaplacianRecursiveGaussianImageFilter</code> / <code>itk::LaplacianSharpeningImageFilter</code></td>
+    <td>Sigma</td>
+    <td>Laplacian / Sharpening</td>
+  </tr>
+  <tr>
+    <td><strong>Canny Edge Detection</strong></td>
+    <td><code>itk::CannyEdgeDetectionImageFilter</code></td>
+    <td>LowerThreshold, UpperThreshold, Variance</td>
+    <td>Canny Edge</td>
+  </tr>
+  <tr>
+    <td><strong>Mean Filter</strong></td>
+    <td><code>itk::MeanImageFilter</code></td>
+    <td>Kernel Radius [x,y,z]</td>
+    <td>Mean Filter</td>
+  </tr>
+  <tr>
+    <td><strong>Normalize Image</strong></td>
+    <td><code>itk::NormalizeImageFilter</code> / <code>itk::RescaleIntensityImageFilter</code></td>
+    <td>OutputMin, OutputMax</td>
+    <td>Normalize / Rescale</td>
+  </tr>
+  <tr>
+    <td><strong>Discrete Gaussian</strong></td>
+    <td><code>itk::DiscreteGaussianImageFilter</code></td>
+    <td>Variance, MaxKernelWidth</td>
+    <td>Discrete Gaussian</td>
+  </tr>
+  <tr>
+    <td><strong>Patch-Based Denoising</strong></td>
+    <td><code>itk::PatchBasedDenoisingImageFilter</code> (非局部均值去噪)</td>
+    <td>PatchRadius, SearchRadius, NoiseModel</td>
+    <td>NL-Means Denoising</td>
+  </tr>
+</table>
+
+<!-- 5.2 形态学算法 -->
+<h3>5.2 形态学算法 (Morphological Operations)</h3>
+<table>
+  <tr><th>算法</th><th>C++ 实现</th><th>关键参数</th><th>对标 3D Slicer</th></tr>
+  <tr>
+    <td><strong>Binary Erosion</strong></td>
+    <td><code>itk::BinaryErodeImageFilter</code></td>
+    <td>KernelRadius, KernelType (Ball/Box/Cross/Annulus)</td>
+    <td>Binary Erosion</td>
+  </tr>
+  <tr>
+    <td><strong>Binary Dilation</strong></td>
+    <td><code>itk::BinaryDilateImageFilter</code></td>
+    <td>KernelRadius, KernelType</td>
+    <td>Binary Dilation</td>
+  </tr>
+  <tr>
+    <td><strong>Binary Opening</strong></td>
+    <td><code>itk::BinaryMorphologicalOpeningImageFilter</code></td>
+    <td>KernelRadius, SafeBorder</td>
+    <td>Binary Opening (Erode→Dilate)</td>
+  </tr>
+  <tr>
+    <td><strong>Binary Closing</strong></td>
+    <td><code>itk::BinaryMorphologicalClosingImageFilter</code></td>
+    <td>KernelRadius, SafeBorder</td>
+    <td>Binary Closing (Dilate→Erode)</td>
+  </tr>
+  <tr>
+    <td><strong>Grayscale Erosion</strong></td>
+    <td><code>itk::GrayscaleErodeImageFilter</code></td>
+    <td>KernelRadius, KernelType</td>
+    <td>Grayscale Erosion</td>
+  </tr>
+  <tr>
+    <td><strong>Grayscale Dilation</strong></td>
+    <td><code>itk::GrayscaleDilateImageFilter</code></td>
+    <td>KernelRadius, KernelType</td>
+    <td>Grayscale Dilation</td>
+  </tr>
+  <tr>
+    <td><strong>Grayscale Opening</strong></td>
+    <td><code>itk::GrayscaleMorphologicalOpeningImageFilter</code></td>
+    <td>KernelRadius</td>
+    <td>Grayscale Opening</td>
+  </tr>
+  <tr>
+    <td><strong>Grayscale Closing</strong></td>
+    <td><code>itk::GrayscaleMorphologicalClosingImageFilter</code></td>
+    <td>KernelRadius</td>
+    <td>Grayscale Closing</td>
+  </tr>
+  <tr>
+    <td><strong>Top-hat Transform</strong></td>
+    <td><code>itk::WhiteTopHatImageFilter</code> / <code>itk::BlackTopHatImageFilter</code></td>
+    <td>KernelRadius</td>
+    <td>Top-hat / Bottom-hat</td>
+  </tr>
+  <tr>
+    <td><strong>Morphological Gradient</strong></td>
+    <td><code>itk::MorphologicalGradientImageFilter</code></td>
+    <td>KernelRadius</td>
+    <td>Morphological Gradient</td>
+  </tr>
+  <tr>
+    <td><strong>Hole Filling</strong></td>
+    <td><code>itk::BinaryFillholeImageFilter</code> / <code>itk::GrayscaleFillholeImageFilter</code></td>
+    <td>FullyConnected</td>
+    <td>Hole Filling</td>
+  </tr>
+  <tr>
+    <td><strong>Skeletonization</strong></td>
+    <td><code>itk::BinaryThinningImageFilter</code> / <code>itk::MedialAxisTransformImageFilter</code></td>
+    <td>—</td>
+    <td>Thinning / Skeleton</td>
+  </tr>
+  <tr>
+    <td><strong>Signed Distance Map</strong></td>
+    <td><code>itk::SignedMaurerDistanceMapImageFilter</code> / <code>itk::DanielssonDistanceMapImageFilter</code></td>
+    <td>InsideIsPositive, SquaredDistance</td>
+    <td>Distance Map</td>
+  </tr>
+  <tr>
+    <td><strong>Connected Components</strong></td>
+    <td><code>itk::ConnectedComponentImageFilter</code> / <code>itk::LabelShapeStatisticsImageFilter</code></td>
+    <td>FullyConnected, MinimumObjectSize</td>
+    <td>Connected Components / Label Stats</td>
+  </tr>
+  <tr>
+    <td><strong>Label Morphology</strong></td>
+    <td><code>itk::BinaryGrindPeakImageFilter</code> / <code>itk::BinaryNotImageFilter</code></td>
+    <td>各种</td>
+    <td>Label Morphology</td>
+  </tr>
+</table>
+
+<!-- 5.3 阈值分割 -->
+<h3>5.3 阈值分割 (Threshold-Based Segmentation)</h3>
+<table>
+  <tr><th>算法</th><th>C++ 实现</th><th>关键参数</th><th>对标 3D Slicer</th></tr>
+  <tr>
+    <td><strong>Otsu 多阈值</strong></td>
+    <td><code>itk::OtsuMultipleThresholdsImageFilter</code></td>
+    <td>NumberOfThresholds, ValleyEmphasis</td>
+    <td>Otsu Threshold</td>
+  </tr>
+  <tr>
+    <td><strong>Manual Range Threshold</strong></td>
+    <td><code>itk::BinaryThresholdImageFilter</code></td>
+    <td>LowerThreshold, UpperThreshold, InsideValue, OutsideValue</td>
+    <td>Threshold Range</td>
+  </tr>
+  <tr>
+    <td><strong>Adaptive Threshold</strong></td>
+    <td>自研 <code>MedAxisAdaptiveThresholdFilter</code> (C++ ITK)</td>
+    <td>KernelRadius, Constant, Method(Mean/Gaussian)</td>
+    <td>Adaptive Threshold</td>
+  </tr>
+  <tr>
+    <td><strong>IsoData Threshold</strong></td>
+    <td><code>itk::IsoDataThresholdImageFilter</code></td>
+    <td>NumberOfBins</td>
+    <td>IsoData</td>
+  </tr>
+  <tr>
+    <td><strong>Maximum Entropy</strong></td>
+    <td><code>itk::MaximumEntropyThresholdImageFilter</code></td>
+    <td>NumberOfBins</td>
+    <td>Maximum Entropy</td>
+  </tr>
+  <tr>
+    <td><strong>Moments Threshold</strong></td>
+    <td><code>itk::MomentsThresholdImageFilter</code></td>
+    <td>NumberOfBins</td>
+    <td>Moments</td>
+  </tr>
+  <tr>
+    <td><strong>Renyi Entropy</strong></td>
+    <td><code>itk::RenyiEntropyThresholdImageFilter</code></td>
+    <td>NumberOfBins</td>
+    <td>Renyi Entropy</td>
+  </tr>
+  <tr>
+    <td><strong>Huang Threshold</strong></td>
+    <td><code>itk::HuangThresholdImageFilter</code></td>
+    <td>NumberOfBins</td>
+    <td>Huang</td>
+  </tr>
+  <tr>
+    <td><strong>Intermodes Threshold</strong></td>
+    <td><code>itk::IntermodesThresholdImageFilter</code></td>
+    <td>NumberOfBins</td>
+    <td>Intermodes</td>
+  </tr>
+  <tr>
+    <td><strong>Li Threshold</strong></td>
+    <td><code>itk::LiThresholdImageFilter</code></td>
+    <td>NumberOfBins</td>
+    <td>Li (Minimum Cross Entropy)</td>
+  </tr>
+</table>
+
+<!-- 5.4 高级分割 -->
+<h3>5.4 高级分割算法 (Advanced Segmentation)</h3>
+<table>
+  <tr><th>算法</th><th>C++ 实现</th><th>关键参数</th><th>对标 3D Slicer</th></tr>
+  <tr>
+    <td><strong>Connected Threshold</strong></td>
+    <td><code>itk::ConnectedThresholdImageFilter</code></td>
+    <td>SeedPoints, LowerThreshold, UpperThreshold</td>
+    <td>Region Growing — Connected Threshold</td>
+  </tr>
+  <tr>
+    <td><strong>Confidence Connected</strong></td>
+    <td><code>itk::ConfidenceConnectedImageFilter</code></td>
+    <td>SeedPoints, Multiplier, Iterations, NeighborhoodRadius</td>
+    <td>Region Growing — Confidence Connected</td>
+  </tr>
+  <tr>
+    <td><strong>Neighborhood Connected</strong></td>
+    <td><code>itk::NeighborhoodConnectedImageFilter</code></td>
+    <td>SeedPoints, LowerThreshold, UpperThreshold, Radius</td>
+    <td>Region Growing — Neighborhood Connected</td>
+  </tr>
+  <tr>
+    <td><strong>Watershed (Morphological)</strong></td>
+    <td><code>itk::MorphologicalWatershedFromMarkersImageFilter</code></td>
+    <td>MarkerLabelMap</td>
+    <td>Watershed</td>
+  </tr>
+  <tr>
+    <td><strong>Watershed (Gradient-based)</strong></td>
+    <td><code>itk::WatershedImageFilter</code></td>
+    <td>Level, Threshold</td>
+    <td>Classic Watershed</td>
+  </tr>
+  <tr>
+    <td><strong>Geodesic Active Contour</strong></td>
+    <td><code>itk::GeodesicActiveContourLevelSetImageFilter</code></td>
+    <td>PropagationScaling, CurvatureScaling, AdvectionScaling, Iterations</td>
+    <td>Level Set — Geodesic</td>
+  </tr>
+  <tr>
+    <td><strong>Shape Detection (Level Set)</strong></td>
+    <td><code>itk::ShapeDetectionLevelSetImageFilter</code></td>
+    <td>PropagationScaling, CurvatureScaling, Iterations</td>
+    <td>Level Set — Shape Detection</td>
+  </tr>
+  <tr>
+    <td><strong>Threshold Level Set</strong></td>
+    <td><code>itk::ThresholdSegmentationLevelSetImageFilter</code></td>
+    <td>LowerThreshold, UpperThreshold, CurvatureScaling, PropagationScaling</td>
+    <td>Level Set — Threshold</td>
+  </tr>
+  <tr>
+    <td><strong>Laplacian Level Set</strong></td>
+    <td><code>itk::LaplacianSegmentationLevelSetImageFilter</code></td>
+    <td>PropagationScaling, CurvatureScaling, Iterations</td>
+    <td>Level Set — Laplacian</td>
+  </tr>
+  <tr>
+    <td><strong>Fast Marching</strong></td>
+    <td><code>itk::FastMarchingImageFilter</code></td>
+    <td>SeedPoints, StoppingTime</td>
+    <td>Fast Marching</td>
+  </tr>
+  <tr>
+    <td><strong>Graph Cut</strong></td>
+    <td>自研 <code>MedAxisGraphCutFilter</code> (C++ CGAL boost::boykov_kolmogorov)</td>
+    <td>ForegroundSeeds, BackgroundSeeds, Lambda</td>
+    <td>Graph Cut</td>
+  </tr>
+  <tr>
+    <td><strong>Random Walker</strong></td>
+    <td>自研 <code>MedAxisRandomWalkerFilter</code> (C++ Eigen 稀疏求解器)</td>
+    <td>Seeds, Beta</td>
+    <td>Random Walker</td>
+  </tr>
+  <tr>
+    <td><strong>GrowCut</strong></td>
+    <td>自研 <code>MedAxisGrowCutFilter</code> (C++ ITK)</td>
+    <td>Seeds, Iterations</td>
+    <td>GrowCut</td>
+  </tr>
+  <tr>
+    <td><strong>Fuzzy C-Means</strong></td>
+    <td>自研 <code>MedAxisFCMFilter</code> (C++ ITK)</td>
+    <td>NumClusters, Fuzziness, MaxIterations</td>
+    <td>Fuzzy C-Means</td>
+  </tr>
+  <tr>
+    <td><strong>K-Means Clustering</strong></td>
+    <td><code>itk::ScalarImageKmeansImageFilter</code></td>
+    <td>NumClusters, MaxIterations</td>
+    <td>K-Means</td>
+  </tr>
+  <tr style="background:#58a6ff11;">
+    <td><strong>Flood Fill (泛洪填充)</strong></td>
+    <td>自研 <code>MedAxisFloodFillFilter</code> (C++ ITK)</td>
+    <td>SeedPoint[x,y,z], LowerThreshold, UpperThreshold, Connectivity(6/18/26-Neighbor)</td>
+    <td>3D 种子点泛洪填充 — 交互式 ROI 快速选取</td>
+  </tr>
+  <tr style="background:#58a6ff11;">
+    <td><strong>Auto-Fill (自动填充 / Fill Between Slices)</strong></td>
+    <td>自研 <code>MedAxisAutoFillFilter</code> (C++ ITK 形态学轮廓插值 + CGAL)</td>
+    <td>SliceRange, Method(Morphological/Linear/BSpline), SmoothingRadius</td>
+    <td>切片间轮廓插值自动填充 — 画少量关键切片自动补完中间层</td>
+  </tr>
+</table>
+
+<!-- 5.5 三维重建 -->
+<h3>5.5 三维重建与表面处理 (3D Reconstruction & Surface Processing)</h3>
+<table>
+  <tr><th>算法</th><th>C++ 实现</th><th>关键参数</th><th>对标 3D Slicer</th></tr>
+  <tr>
+    <td><strong>Marching Cubes</strong></td>
+    <td><code>vtkMarchingCubes</code> / <code>itk::BinaryMask3DContourFilter</code></td>
+    <td>IsoValue, ComputeNormals</td>
+    <td>Marching Cubes (VTK)</td>
+  </tr>
+  <tr>
+    <td><strong>Flying Edges</strong></td>
+    <td><code>vtkFlyingEdges3D</code> (VTK 9.x 高性能替代)</td>
+    <td>IsoValues (多等值面)</td>
+    <td>Flying Edges (更快)</td>
+  </tr>
+  <tr>
+    <td><strong>Surface Nets</strong></td>
+    <td>自研 <code>MedAxisSurfaceNetsFilter</code> (C++ CGAL + pybind11)</td>
+    <td>IsoValue, SmoothIterations</td>
+    <td>Surface Nets (Dual Contouring)</td>
+  </tr>
+  <tr>
+    <td><strong>Poisson Reconstruction</strong></td>
+    <td><code>CGAL::poisson_surface_reconstruction_delaunay</code></td>
+    <td>Depth, Scale, SamplesPerNode</td>
+    <td>Poisson Surface Reconstruction</td>
+  </tr>
+  <tr>
+    <td><strong>Advancing Front</strong></td>
+    <td><code>CGAL::advancing_front_surface_reconstruction</code></td>
+    <td>RadiusRatio, Beta</td>
+    <td>Advancing Front Reconstruction</td>
+  </tr>
+  <tr>
+    <td><strong>Delaunay Triangulation</strong></td>
+    <td><code>CGAL::Delaunay_triangulation_3</code></td>
+    <td>—</td>
+    <td>Delaunay Mesh</td>
+  </tr>
+  <tr>
+    <td><strong>Laplacian Smoothing</strong></td>
+    <td><code>vtkSmoothPolyDataFilter</code> / CGAL 自研</td>
+    <td>Iterations, RelaxationFactor</td>
+    <td>Laplacian Smooth</td>
+  </tr>
+  <tr>
+    <td><strong>Taubin Smoothing</strong></td>
+    <td><code>vtkWindowedSincPolyDataFilter</code> / CGAL 自研</td>
+    <td>Iterations, PassBand</td>
+    <td>Taubin Smooth</td>
+  </tr>
+  <tr>
+    <td><strong>Quadric Decimation</strong></td>
+    <td><code>vtkQuadricDecimation</code> / <code>CGAL::Surface_mesh_simplification</code></td>
+    <td>TargetReduction, PreserveTopology</td>
+    <td>Decimation / Simplify</td>
+  </tr>
+  <tr>
+    <td><strong>Mesh Subdivision</strong></td>
+    <td><code>CGAL::Subdivision_method_3</code> (Loop, Catmull-Clark)</td>
+    <td>Iterations, Method</td>
+    <td>Subdivision (Loop)</td>
+  </tr>
+  <tr>
+    <td><strong>Hole Filling</strong></td>
+    <td><code>vtkFillHolesFilter</code> / <code>CGAL::Polygon_mesh_processing::fill_holes</code></td>
+    <td>MaxHoleSize</td>
+    <td>Hole Filling</td>
+  </tr>
+  <tr>
+    <td><strong>Boolean Operations</strong></td>
+    <td><code>CGAL::Polygon_mesh_processing::corefine_and_compute_union</code></td>
+    <td>Operation (Union/Intersect/Difference)</td>
+    <td>Mesh Boolean (CGAL PMP)</td>
+  </tr>
+  <tr>
+    <td><strong>Curvature Estimation</strong></td>
+    <td>自研 (CGAL + ITK)</td>
+    <td>CurvatureType (Mean/Gaussian/Principal/Max/Min)</td>
+    <td>Curvature</td>
+  </tr>
+  <tr>
+    <td><strong>Surface Area / Volume</strong></td>
+    <td><code>vtkMassProperties</code> / CGAL 自研</td>
+    <td>—</td>
+    <td>Surface Stats</td>
+  </tr>
+  <tr>
+    <td><strong>Auto-Fill Contour Interpolation</strong></td>
+    <td>自研 C++ (ITK Morphological Contour Interpolation + CGAL)</td>
+    <td>Method (Morphological/Linear/BSpline), SmoothIterations</td>
+    <td>Label Map — 切片间轮廓插值自动填充</td>
+  </tr>
+</table>
+
+<!-- 5.6 图像配准 -->
+<h3>5.6 图像配准 (Image Registration)</h3>
+<table>
+  <tr><th>算法</th><th>C++ 实现</th><th>关键参数</th><th>对标 3D Slicer</th></tr>
+  <tr>
+    <td><strong>Rigid (Versor)</strong></td>
+    <td><code>itk::VersorRigid3DTransform</code> + <code>itk::ImageRegistrationMethodv4</code></td>
+    <td>LearningRate, Iterations, Metric (MI/Mattes/MeanSquares)</td>
+    <td>Rigid Registration</td>
+  </tr>
+  <tr>
+    <td><strong>Affine</strong></td>
+    <td><code>itk::AffineTransform</code> + <code>itk::ImageRegistrationMethodv4</code></td>
+    <td>同上 + 12 DOF</td>
+    <td>Affine Registration</td>
+  </tr>
+  <tr>
+    <td><strong>BSpline Deformable</strong></td>
+    <td><code>itk::BSplineTransform</code> + LBFGSB Optimizer</td>
+    <td>MeshSize, LearningRate, Iterations</td>
+    <td>BSpline Deformable</td>
+  </tr>
+  <tr>
+    <td><strong>Demons</strong></td>
+    <td><code>itk::DemonsRegistrationFilter</code> / <code>itk::DiffeomorphicDemonsRegistrationFilter</code> / <code>itk::FastSymmetricForcesDemonsRegistrationFilter</code></td>
+    <td>Iterations, StandardDeviations</td>
+    <td>Demons (3 variants)</td>
+  </tr>
+  <tr>
+    <td><strong>SyN (ANTs)</strong></td>
+    <td>自研 C++ 封装 ANTs <code>SyNOnlyImageRegistrationMethod</code></td>
+    <td>Iterations, Regularization</td>
+    <td>SyN Registration (ANTs)</td>
+  </tr>
+  <tr>
+    <td><strong>Mutual Information Metric</strong></td>
+    <td><code>itk::MattesMutualInformationImageToImageMetricv4</code></td>
+    <td>NumberOfHistogramBins</td>
+    <td>Mutual Information (多模态)</td>
+  </tr>
+</table>
+
+<!-- 5.7 图像运算与增强 -->
+<h3>5.7 图像算术 & 增强 (Image Arithmetic & Enhancement)</h3>
+<table>
+  <tr><th>算法</th><th>C++ 实现</th><th>关键参数</th><th>对标 3D Slicer</th></tr>
+  <tr>
+    <td><strong>Add / Subtract / Multiply / Divide</strong></td>
+    <td><code>itk::AddImageFilter</code> / <code>itk::SubtractImageFilter</code> / <code>itk::MultiplyImageFilter</code> / <code>itk::DivideImageFilter</code></td>
+    <td>Constant / Image operand</td>
+    <td>Arithmetic</td>
+  </tr>
+  <tr>
+    <td><strong>Mask Image</strong></td>
+    <td><code>itk::MaskImageFilter</code> / <code>itk::MaskNegatedImageFilter</code></td>
+    <td>MaskingValue, OutsideValue</td>
+    <td>Mask</td>
+  </tr>
+  <tr>
+    <td><strong>Invert Intensity</strong></td>
+    <td><code>itk::InvertIntensityImageFilter</code></td>
+    <td>Maximum</td>
+    <td>Invert</td>
+  </tr>
+  <tr>
+    <td><strong>Cast Image</strong></td>
+    <td><code>itk::CastImageFilter</code> / <code>itk::RescaleIntensityImageFilter</code></td>
+    <td>OutputPixelType, OutputMin, OutputMax</td>
+    <td>Cast / Rescale</td>
+  </tr>
+  <tr>
+    <td><strong>Histogram Equalization</strong></td>
+    <td><code>itk::AdaptiveHistogramEqualizationImageFilter</code></td>
+    <td>Alpha, Beta, Radius</td>
+    <td>CLAHE / Histogram EQ</td>
+  </tr>
+  <tr>
+    <td><strong>Log Transform</strong></td>
+    <td>自研 C++ Filter</td>
+    <td>Shift, Scale</td>
+    <td>Log Transform</td>
+  </tr>
+  <tr>
+    <td><strong>Window / Level</strong></td>
+    <td><code>itk::IntensityWindowingImageFilter</code></td>
+    <td>Window, Level, OutputMin, OutputMax</td>
+    <td>Window/Level</td>
+  </tr>
+  <tr>
+    <td><strong>Resample</strong></td>
+    <td><code>itk::ResampleImageFilter</code></td>
+    <td>OutputSpacing, OutputSize, Interpolator, Transform</td>
+    <td>Resample</td>
+  </tr>
+  <tr>
+    <td><strong>Crop / Pad</strong></td>
+    <td><code>itk::CropImageFilter</code> / <code>itk::ConstantPadImageFilter</code> / <code>itk::MirrorPadImageFilter</code></td>
+    <td>Bounds / PadSize</td>
+    <td>Crop / Pad</td>
+  </tr>
+  <tr>
+    <td><strong>Flip / Permute Axes</strong></td>
+    <td><code>itk::FlipImageFilter</code> / <code>itk::PermuteAxesImageFilter</code></td>
+    <td>FlipAxes / Order</td>
+    <td>Flip / Swap Axes</td>
+  </tr>
+</table>
+
+<!-- 5.8 影像组学 -->
+<h3>5.8 影像组学特征提取 (Radiomics Feature Extraction)</h3>
+<table>
+  <tr><th>类别</th><th>特征数量</th><th>C++ 实现</th><th>说明</th></tr>
+  <tr>
+    <td><strong>First-Order Statistics</strong></td>
+    <td>18</td>
+    <td>自研 C++ (<code>MedAxisRadiomicsFilter</code>)</td>
+    <td>Mean, Variance, Skewness, Kurtosis, Energy, Entropy, 10th/90th Percentile, IQR, Range, MAD, RMAD, Uniformity 等</td>
+  </tr>
+  <tr>
+    <td><strong>GLCM (Gray Level Co-occurrence)</strong></td>
+    <td>24</td>
+    <td>自研 C++</td>
+    <td>Contrast, Correlation, Energy, Homogeneity, Dissimilarity, ASM, ClusterShade 等 (all directions)</td>
+  </tr>
+  <tr>
+    <td><strong>GLRLM (Run Length Matrix)</strong></td>
+    <td>16</td>
+    <td>自研 C++</td>
+    <td>SRE, LRE, GLN, RLN, RP, LGRE, HGRE, SRLGLE, SRHGLE, LRLGLE, LRHGLE</td>
+  </tr>
+  <tr>
+    <td><strong>GLSZM (Size Zone Matrix)</strong></td>
+    <td>16</td>
+    <td>自研 C++</td>
+    <td>SAE, LAE, SZN, ZSN, ZP, LGZE, HGZE, SALGLE, SAHGLE, LALGLE, LAHGLE</td>
+  </tr>
+  <tr>
+    <td><strong>GLDM (Dependence Matrix)</strong></td>
+    <td>14</td>
+    <td>自研 C++</td>
+    <td>SDE, LDE, GLN, DN, DependenceVariance, DependenceEntropy 等</td>
+  </tr>
+  <tr>
+    <td><strong>NGTDM (Neighbourhood Tone)</strong></td>
+    <td>5</td>
+    <td>自研 C++</td>
+    <td>Coarseness, Contrast, Busyness, Complexity, Strength</td>
+  </tr>
+  <tr>
+    <td><strong>Shape Features (2D)</strong></td>
+    <td>10</td>
+    <td>自研 C++</td>
+    <td>Perimeter, Area, PerimeterSurfaceRatio, Sphericity, Major/MinorAxis, Elongation</td>
+  </tr>
+  <tr>
+    <td><strong>Shape Features (3D)</strong></td>
+    <td>16</td>
+    <td>自研 C++</td>
+    <td>Volume, SurfaceArea, SurfaceVolumeRatio, Sphericity, Compactness, Flatness, Max3DDiameter, MeshVolume</td>
+  </tr>
+</table>
+
+<!-- 5.9 AlgorithmRegistry 设计 -->
+<h3>5.9 算法注册与调用架构</h3>
+<div class="mermaid-box dark">
+<div class="mermaid">
+graph TB
+    subgraph API["统一调用入口 (Python)"]
+        AR["AlgorithmRegistry<br/>全局算法注册中心"]
+        Pipeline["ProcessingPipeline<br/>链式组合多个算法"]
+        Progress["ProgressMonitor<br/>进度回调 + 取消"]
+    end
+
+    subgraph CAT["算法分类注册"]
+        F["📊 Filtering<br/>12 个滤波器"]
+        M["🔲 Morphology<br/>14 个形态学运算"]
+        T["🎯 Threshold<br/>10 个阈值方法"]
+        S["🔬 Segmentation<br/>15 个分割算法"]
+        R3["🧊 3D Reconstruction<br/>6 个重建方法"]
+        SP["🔧 Surface Processing<br/>8 个表面处理"]
+        REG["↔️ Registration<br/>6 个配准方法"]
+        ARITH["➕ Arithmetic<br/>10 个运算"]
+        RAD["📈 Radiomics<br/>8 类特征 (119 个)"]
+    end
+
+    subgraph BACK["后端实现 (C++)"]
+        ITK_PIPE["ITK Filter Pipeline<br/>所有 itk:: 开头的 Filter"]
+        VTK_PIPE["VTK Filter Pipeline<br/>vtkMarchingCubes 等"]
+        CGAL_PIPE["CGAL pybind11<br/>mesh_reconstruct · curvature"]
+        CUSTOM["Custom C++ Filters<br/>MedAxis* 自研算法"]
+    end
+
+    subgraph EXPO["暴露方式"]
+        UI_MENU["UI 菜单 / 面板"]
+        MCP_TOOL["MCP Tool<br/>run_algorithm"]
+        PLUGIN_REG["Plugin 注册点"]
+    end
+
+    AR --> CAT
+    Pipeline --> AR
+    CAT --> BACK
+    AR --> EXPO
+
+    F & M & T & S & R3 & SP & REG & ARITH & RAD --> ITK_PIPE
+    R3 & SP --> VTK_PIPE
+    R3 & SP --> CGAL_PIPE
+    T & S --> CUSTOM
+</div>
+</div>
+</section>
+<!-- ================================================================== -->
+<section id="ai-integration">
+<h2>6. AI 模型集成（外部 API 接口方式）</h2>
+
+<div class="highlight-box info">
+  <strong>核心理念：</strong>AI 分割模型作为<strong>外部服务</strong>运行（用户自部署或 SaaS），MedAxis
+  <strong>不捆绑</strong> ONNX Runtime、PyTorch、TensorRT 等重型推理引擎。MedAxis 只做三件事：
+  <strong>序列化影像数据 → 调用外部 API → 接收 LabelMap 叠加渲染</strong>。
+  模型部署、GPU 调度、扩缩容完全由外部 AI 服务负责。
+</div>
+
+<h3>6.1 集成架构</h3>
+<div class="mermaid-box dark">
+<div class="mermaid">
+graph TB
+    subgraph MEDAXIS["🖥️ MedAxis 平台"]
+        UI_AI["AI Panel<br/>模型选择 · 配置 · 执行"]
+        APIClient["AIAPIClient<br/>统一 API 客户端层"]
+        Serializer["Data Serializer<br/>VolumeData → NIfTI / DICOM SEG"]
+        ResultMgr["ResultManager<br/>LabelMap 接收 → 叠加渲染"]
+    end
+
+    subgraph API_GW["🔌 外部 AI 服务（用户自部署）"]
+        REST["REST API<br/>POST /api/v1/segment"]
+        GRPC["gRPC<br/>Streaming Inference"]
+        JOB["Job Queue<br/>异步任务 · 进度轮询"]
+    end
+
+    subgraph AI_SVC["⚡ AI Models（外部进程 / 容器）"]
+        TOTAL["TotalSegmentator<br/>全身 CT 104 类器官"]
+        NNU["nnU-Net v2<br/>用户自训练模型"]
+        MEDSAM["MedSAM / SAM 2<br/>Promptable 分割"]
+        MONAI["MONAI Deploy<br/>标准化推理服务"]
+        CUSTOM["Custom Service<br/>任意兼容 API 的服务"]
+    end
+
+    UI_AI --> APIClient
+    APIClient --> Serializer
+    Serializer --> REST & GRPC
+    REST & GRPC --> JOB
+    JOB --> TOTAL & NNU & MEDSAM & MONAI & CUSTOM
+    TOTAL & NNU & MEDSAM & MONAI & CUSTOM --> JOB
+    JOB --> ResultMgr
+    ResultMgr --> UI_AI
+</div>
+</div>
+
+<h3>6.2 标准 API 接口定义（MedAxis 规范）</h3>
+<p>任何外部 AI 服务只需实现此接口即可被 MedAxis 发现和调用：</p>
+<pre><code>// ─── 请求：POST /api/v1/segment ───
+{
+  "model_id": "totalsegmentator-v2",
+  "image": {
+    "data_url": "http://medaxis-local:8080/volumes/vol-001/nifti",  // 或内联 base64
+    "modality": "CT",
+    "spacing": [1.5, 1.5, 1.5],
+    "orientation": "LPS"
+  },
+  "params": {
+    "roi": [[-50,-50,20], [50,50,60]],   // 可选：感兴趣区域
+    "tta": true,                            // 可选：Test-Time Augmentation
+    "output_format": "nifti"               // nifti / nrrd / labelmap_json
+  }
+}
+
+// ─── 响应 ───
+{
+  "job_id": "job-2025-001",
+  "status": "completed",                   // queued | running | completed | failed
+  "progress": 1.0,
+  "result": {
+    "label_data_url": "http://ai-service:9000/results/job-2025-001/label.nii.gz",
+    "class_names": ["spleen","kidney_right","kidney_left","liver",...],
+    "label_values": [1, 2, 3, 4, ...],
+    "inference_time_sec": 45.2,
+    "gpu_model": "NVIDIA RTX 4090"
+  },
+  "error": null
+}
+
+// ─── 模型发现：GET /api/v1/models ───
+// Response:
+{
+  "models": [
+    {
+      "id": "totalsegmentator-v2",
+      "name": "TotalSegmentator v2",
+      "modality": "CT",
+      "num_classes": 104,
+      "class_names": ["spleen","kidney_right",...],
+      "estimated_time_sec": 60,
+      "description": "全身 CT 多器官分割"
+    }
+  ]
+}</code></pre>
+
+<h3>6.3 AIAPIClient 插件体系</h3>
+<table>
+  <tr><th>客户端</th><th>传输</th><th>适用场景</th><th>文件</th></tr>
+  <tr>
+    <td><strong>REST Client</strong></td>
+    <td>HTTP/HTTPS (aiohttp/httpx)</td>
+    <td>标准 HTTP API、防火墙友好、调试方便</td>
+    <td><code>plugins/api_clients/rest_client.py</code></td>
+  </tr>
+  <tr>
+    <td><strong>gRPC Client</strong></td>
+    <td>HTTP/2 + Protobuf</td>
+    <td>高性能、流式推理、低延迟内网</td>
+    <td><code>plugins/api_clients/grpc_client.py</code></td>
+  </tr>
+  <tr>
+    <td><strong>MCP Client</strong></td>
+    <td>JSON-RPC (stdio/SSE)</td>
+    <td>跨 Agent 协作：调用另一个 MCP Server 的 AI Tool</td>
+    <td><code>plugins/api_clients/mcp_client.py</code></td>
+  </tr>
+  <tr>
+    <td><strong>DICOMweb Client</strong></td>
+    <td>HTTP (WADO-RS)</td>
+    <td>对接 PACS / DICOM 工作站，发送 DICOM SEG 对象</td>
+    <td><code>plugins/api_clients/dicomweb_client.py</code></td>
+  </tr>
+</table>
+
+<h3>6.4 内置服务适配器（Service Adapters）</h3>
+<p>针对主流 AI 分割服务预置适配器，用户只需填写服务 URL 即可对接：</p>
+<table>
+  <tr><th>适配器</th><th>对接服务</th><th>需配置</th><th>说明</th></tr>
+  <tr>
+    <td><strong>TotalSegmentator Adapter</strong></td>
+    <td>自部署 TotalSegmentator REST API</td>
+    <td><code>base_url</code></td>
+    <td>适配官方输入/输出格式</td>
+  </tr>
+  <tr>
+    <td><strong>nnU-Net Adapter</strong></td>
+    <td>自部署 nnU-Net v2 Inference Server</td>
+    <td><code>base_url + task_name</code></td>
+    <td>用户训练 → 部署 API → 对接 MedAxis</td>
+  </tr>
+  <tr>
+    <td><strong>MedSAM Adapter</strong></td>
+    <td>自部署 MedSAM API</td>
+    <td><code>base_url</code></td>
+    <td>Prompt(点/框) + 影像 → mask</td>
+  </tr>
+  <tr>
+    <td><strong>MONAI Deploy Adapter</strong></td>
+    <td>MONAI Deploy App SDK</td>
+    <td><code>base_url + app_name</code></td>
+    <td>标准 MONAI informatics gateway</td>
+  </tr>
+  <tr>
+    <td><strong>Generic Adapter</strong></td>
+    <td>任意兼容 MedAxis API 规范的服务</td>
+    <td><code>base_url</code></td>
+    <td>实现 <code>POST /segment</code> + <code>GET /models</code> 即可</td>
+  </tr>
+  <tr>
+    <td><strong>DICOM SEG Adapter</strong></td>
+    <td>PACS / DICOM 工作站</td>
+    <td><code>ae_title, host, port</code></td>
+    <td>C-STORE 发送影像 → C-GET 取 SEG</td>
+  </tr>
+</table>
+
+<h3>6.5 数据流（API 模式）</h3>
+<div class="mermaid-box dark">
+<div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor User
+    participant UI as MedAxis UI (Py)
+    participant Client as AIAPIClient (Py)
+    participant GW as External AI API
+    participant AI as AI Model (External)
+
+    User->>UI: 选择模型 + 点击 Run
+    UI->>Client: segment(volume, model_id, params)
+    Client->>Client: VolumeData → NIfTI byte stream (ITK C++)
+    Client->>GW: POST /api/v1/segment<br/>(multipart: nifti + model_id + params)
+    GW-->>Client: { job_id, status: "queued" }
+
+    Note over GW,AI: 异步队列处理
+
+    loop 轮询进度 (每 2 秒)
+        Client->>GW: GET /api/v1/jobs/{job_id}
+        GW-->>Client: { status: "running", progress: 0.65 }
+    end
+
+    GW-->>Client: { status: "completed", result: { label_data_url } }
+    Client->>GW: GET {label_data_url} → 下载 LabelMap (.nii.gz)
+    Note over Client: nibabel 反序列化 → numpy<br/>→ DataBridge (C++) 构造 VolumeData
+    Client-->>UI: LabelMap 就绪 → 叠加渲染
+</div>
+</div>
+
+<h3>6.6 AI 服务管理面板</h3>
+<table>
+  <tr><th>功能</th><th>说明</th></tr>
+  <tr>
+    <td><strong>AI Service Registry</strong></td>
+    <td>管理所有外部 AI 服务：添加/编辑/删除/启用/禁用、测试连接</td>
+  </tr>
+  <tr>
+    <td><strong>Model Browser</strong></td>
+    <td>自动从已注册服务拉取模型列表（<code>GET /models</code>）、显示元信息（器官/模态/耗时）</td>
+  </tr>
+  <tr>
+    <td><strong>Connection Test</strong></td>
+    <td>一键测试 API 连通性和延迟</td>
+  </tr>
+  <tr>
+    <td><strong>Job Monitor</strong></td>
+    <td>查看当前/历史推理任务状态、排队位置、预估等待时间</td>
+  </tr>
+</table>
+
+<h3>6.7 Script & MCP 调用示例</h3>
+<pre><code># ─── Script 调用 ───
+# 列出所有已注册 AI 服务的可用模型
+models = medaxis.ai.list_models()
+# → [{"id":"totalsegmentator-v2","provider":"local-api:8080",...}, ...]
+
+# 执行 AI 分割
+label = medaxis.ai.segment(
+    volume=vol,
+    model="totalsegmentator-v2",
+    params={"tta": True}
+)
+# → 阻塞等待完成，或传入 callback 异步
+
+# 异步模式
+job = medaxis.ai.segment_async(volume=vol, model="totalsegmentator-v2")
+print(job.status)  # "queued"
+medaxis.ai.wait(job)
+label = job.result()
+
+# ─── MCP Tool（AI Agent → MedAxis） ───
+# Tool: run_ai_segmentation
+# Arguments: { volume_id, model_id, service_url?, params? }
+# Tool: list_ai_models
+# Arguments: { service_url? }
+# Tool: get_ai_job_status
+# Arguments: { job_id }</code></pre>
+
+<h3>6.8 经典算法 vs AI API 对比</h3>
+<table>
+  <tr><th>维度</th><th>经典 ITK 算法（内置）</th><th>AI API 集成（外部）</th></tr>
+  <tr><td><strong>部署方式</strong></td><td>MedAxis 内置，零依赖</td><td>用户自部署 AI 服务 / SaaS</td></tr>
+  <tr><td><strong>注册入口</strong></td><td><code>AlgorithmRegistry</code> → <code>medaxis.algorithms.*</code></td><td><code>AIAPIClient</code> → <code>medaxis.ai.*</code></td></tr>
+  <tr><td><strong>GPU 需求</strong></td><td>无（CPU only）</td><td>由外部 AI 服务自行管理，MedAxis 不感知</td></tr>
+  <tr><td><strong>执行方式</strong></td><td>ITK C++ Filter，同步，秒级</td><td>HTTP/gRPC 异步，分钟级，带进度轮询</td></tr>
+  <tr><td><strong>离线可用</strong></td><td>✅ 始终可用</td><td>❌ 依赖网络和外部 AI 服务</td></tr>
+  <tr><td><strong>模型管理</strong></td><td>无（算法即代码）</td><td>外部服务负责模型版本/更新/扩缩</td></tr>
+</table>
+</section>
+<!-- ================================================================== -->
+<section id="mcp">
+<h2>7. MCP 协议设计</h2>
+
+<h3>7.1 设计理念</h3>
+<p>
+MCP (Model Context Protocol) 是 AI Agent 与外部工具交互的标准协议。
+MedAxis 内建 MCP Server（纯 Python），允许 AI Agent 通过标准化接口操控平台。
+</p>
+
+<h3>7.2 Server 架构</h3>
+<div class="mermaid-box dark">
+<div class="mermaid">
+graph LR
+    subgraph AI["🤖 AI Agent"]
+        LLM["LLM<br/>Claude / GPT / Local"]
+    end
+
+    subgraph MCPLayer["MedAxis MCP Server  (Python)"]
+        Transport["Transport<br/>stdio / SSE / WebSocket"]
+        Router["Tool Router<br/>JSON-RPC 2.0"]
+        Auth["Auth Middleware<br/>权限校验"]
+    end
+
+    subgraph Tools["🔧 Tools (Python → C++ dispatch)"]
+        T_IO["📁 Image I/O<br/>open_dicom · open_nifti"]
+        T_VIEW["👁️ View Control<br/>set_slice · window_level"]
+        T_SEG["🔬 Segmentation<br/>run_threshold · run_watershed"]
+        T_MEAS["📏 Measurement<br/>distance · angle · roi_stats"]
+        T_MRP["🔄 MRP<br/>set_reslice_plane · set_curve_path"]
+        T_AI["🧠 AI<br/>run_ai_segmentation · list_models · download_model"]
+        T_ANALY["🧪 Analysis<br/>histogram · radiomics"]
+    end
+
+    LLM -->|JSON-RPC| Transport
+    Transport --> Router
+    Router --> Auth
+    Auth --> T_IO & T_VIEW & T_SEG & T_MEAS & T_MRP & T_ANALY
+</div>
+</div>
+
+<h3>7.3 Tools 详细定义</h3>
+<table>
+  <tr><th>Tool Name</th><th>参数</th><th>返回</th><th>底层调用</th></tr>
+  <tr>
+    <td><code>run_algorithm</code></td>
+    <td><code>volume_id, algorithm: str, params: dict</code></td>
+    <td><code>output_volume_id / mesh_id, stats</code></td>
+    <td>Python AlgorithmRegistry → C++ ITK/VTK/CGAL</td>
+  </tr>
+  <tr>
+    <td><code>open_dicom</code></td>
+    <td><code>path: str, series_uid?: str</code></td>
+    <td><code>volume_id, dimensions, spacing, modality</code></td>
+    <td>Python FileManager → C++ DataBridge</td>
+  </tr>
+  <tr>
+    <td><code>open_nifti</code></td>
+    <td><code>path: str</code></td>
+    <td><code>volume_id, dimensions, affine</code></td>
+    <td>Python nibabel → C++ DataBridge</td>
+  </tr>
+  <tr>
+    <td><code>get_metadata</code></td>
+    <td><code>volume_id: str</code></td>
+    <td><code>完整 DICOM / NIfTI 元数据 JSON</code></td>
+    <td>Python VolumeData.metadata</td>
+  </tr>
+  <tr>
+    <td><code>set_slice</code></td>
+    <td><code>volume_id, axis, index: int</code></td>
+    <td><code>image_base64, slice_info</code></td>
+    <td>Python → C++ vtkImageReslice</td>
+  </tr>
+  <tr>
+    <td><code>set_reslice_plane</code></td>
+    <td><code>volume_id, origin, normal</code></td>
+    <td><code>image_base64</code></td>
+    <td>Python → C++ MedAxisResliceFilter</td>
+  </tr>
+  <tr>
+    <td><code>set_curve_path</code></td>
+    <td><code>volume_id, control_points</code></td>
+    <td><code>image_base64 (CPR 展开图)</code></td>
+    <td>Python → OCC + C++ MedAxisResliceFilter</td>
+  </tr>
+  <tr>
+    <td><code>run_segmentation</code></td>
+    <td><code>volume_id, method, params, roi?</code></td>
+    <td><code>label_volume_id, stats</code></td>
+    <td>Python → C++ MedAxisSegmentFilter</td>
+  </tr>
+  <tr>
+    <td><code>get_roi_statistics</code></td>
+    <td><code>volume_id, label_volume_id, label_value</code></td>
+    <td><code>mean, std, min, max, volume_ml</code></td>
+    <td>Python 从 numpy LabelMap 统计</td>
+  </tr>
+  <tr>
+    <td><code>export_screenshot</code></td>
+    <td><code>view_id, format</code></td>
+    <td><code>file_path / base64</code></td>
+    <td>Python Qt grab()</td>
+  </tr>
+  <tr>
+    <td><code>run_ai_segmentation</code></td>
+    <td><code>volume_id, model_id: str, service_url?: str, params?: dict</code></td>
+    <td><code>label_volume_id, inference_time_sec</code></td>
+    <td>Python → AIAPIClient → 外部 AI 服务 REST/gRPC 调用</td>
+  </tr>
+  <tr>
+    <td><code>list_ai_models</code></td>
+    <td><code>service_url?: str</code></td>
+    <td><code>list[model_info]</code></td>
+    <td>Python → AIAPIClient → GET /models 拉取外部服务模型列表</td>
+  </tr>
+</table>
+</section>
+
+<!-- ================================================================== -->
+<section id="scripting">
+<h2>8. Script 脚本模块（对标 Mimics / 3D Slicer Python Console）</h2>
+
+<div class="highlight-box info">
+  <strong>设计目标：</strong>提供类似 Materialise Mimics 和 3D Slicer 的 Python 脚本控制台，
+  允许用户编写、注入、执行外部 Python 代码来操控平台全部功能。
+  支持交互式 REPL、脚本文件执行、宏录制（Action Recorder）、以及通过 MCP 远程注入代码。
+</div>
+
+<h3>8.1 Script 模块架构</h3>
+<div class="mermaid-box dark">
+<div class="mermaid">
+graph TB
+    subgraph USER["👤 用户入口"]
+        REPL["Interactive Console<br/>IPython / QtConsole"]
+        Editor["Script Editor<br/>语法高亮 + 自动补全"]
+        Recorder["Action Recorder<br/>UI 操作 → Python 代码录制"]
+        FileMgr["Script Manager<br/>脚本库 · 收藏 · 历史"]
+    end
+
+    subgraph ENGINE["⚙️ Script Engine  (Python)"]
+        Sandbox["Script Sandbox<br/>安全沙箱 · 权限控制"]
+        MedAxisAPI["medaxis API<br/>面向用户的稳定 API 层"]
+        HookSystem["Hook System<br/>事件钩子 (on_volume_loaded / on_segmentation_done ...)"]
+    end
+
+    subgraph BACK["🔧 后端能力暴露"]
+        DataAPI["medaxis.data<br/>volumes · labels · meshes"]
+        ViewAPI["medaxis.views<br/>slice · volume · mpr · cpr"]
+        AlgoAPI["medaxis.algorithms<br/>filter · segment · reconstruct · register"]
+        MCPAPI["medaxis.mcp<br/>send_tool · call_agent"]
+        UIAPI["medaxis.ui<br/>dialog · progress · notification"]
+        IOAPI["medaxis.io<br/>open · save · export"]
+    end
+
+    USER --> ENGINE
+    Sandbox --> MedAxisAPI
+    MedAxisAPI --> BACK
+    Recorder --> HookSystem
+    HookSystem --> MedAxisAPI
+</div>
+</div>
+
+<h3>8.2 medaxis API 命名空间（用户视角）</h3>
+<pre><code># ─── 数据访问 ───
+medaxis.data.volumes()           # → list[Volume]
+medaxis.data.volumes(id="...")   # → Volume
+medaxis.data.labels(volume)      # → list[LabelMap]
+medaxis.data.meshes()            # → list[Mesh]
+
+# ─── 文件 I/O ───
+vol = medaxis.io.open_dicom("path/to/dicom/folder")
+vol = medaxis.io.open_nifti("brain.nii.gz")
+medaxis.io.export_mesh(mesh, "output.stl")
+medaxis.io.export_labelmap(label, "segmentation.nrrd")
+
+# ─── 视图控制 ───
+medaxis.views.current_view()     # → View
+medaxis.views.set_slice(vol, axis="axial", index=50)
+medaxis.views.set_window_level(vol, window=400, level=40)
+medaxis.views.set_reslice_plane(vol, origin=(0,0,0), normal=(0,0,1))
+medaxis.views.screenshot("output.png")
+medaxis.views.zoom_to_fit()
+
+# ─── 算法调用 ───
+label = medaxis.algorithms.threshold(vol, lower=-100, upper=300)
+label = medaxis.algorithms.otsu(vol, num_thresholds=2)
+label = medaxis.algorithms.region_grow(vol, seed=(120,85,45), lower=50, upper=200)
+label = medaxis.algorithms.flood_fill(vol, seed=(120,85,45), lower=50, upper=200, connectivity=26)
+label = medaxis.algorithms.auto_fill(label, slice_range=(0, 100), method="morphological")
+label = medaxis.algorithms.watershed(vol, level=0.3)
+smoothed = medaxis.algorithms.gaussian(vol, sigma=1.5)
+denoised = medaxis.algorithms.nl_means(vol, patch_radius=2, search_radius=5)
+morph = medaxis.algorithms.morphology(label, operation="closing", radius=2)
+mesh = medaxis.algorithms.marching_cubes(label, iso_value=0.5)
+mesh = medaxis.algorithms.poisson_recon(label, depth=8)
+mesh_smooth = medaxis.algorithms.mesh_smooth(mesh, method="taubin", iterations=20)
+mesh_decimated = medaxis.algorithms.mesh_decimate(mesh, reduction=0.5)
+features = medaxis.algorithms.radiomics(vol, label, features=["first_order", "glcm", "shape3d"])
+
+# ─── 测量 ───
+stats = medaxis.algorithms.label_statistics(label, vol)
+print(stats.volume_ml, stats.mean_hu, stats.max_3d_diameter)
+dist = medaxis.algorithms.distance(point_a=(10,20,30), point_b=(50,60,70))
+angle = medaxis.algorithms.angle(p1=(0,0,0), p2=(10,0,0), p3=(0,10,0))
+profile = medaxis.algorithms.profile_line(vol, start=(0,0,0), end=(100,0,0))
+
+# ─── AI 模型集成（外部 API） ───
+models = medaxis.ai.list_models()
+label = medaxis.ai.segment(volume=vol, model="totalsegmentator-v2")
+label = medaxis.ai.segment_async(volume=vol, model="totalsegmentator-v2")
+
+# ─── MCP / AI Agent ───
+medaxis.mcp.send_tool("run_segmentation", {"volume_id": vol.id, "method": "watershed"})
+result = medaxis.mcp.call_agent("分析这个病例的肺部结节")
+
+# ─── UI 交互 ───
+medaxis.ui.show_message("处理完成", level="info")
+medaxis.ui.progress_bar(0.5, text="正在分割...")
+medaxis.ui.dialog_input("请输入阈值范围:", default="-100,300")</code></pre>
+
+<h3>8.3 Action Recorder（宏录制）</h3>
+<table>
+  <tr><th>功能</th><th>说明</th><th>对标 Mimics</th></tr>
+  <tr>
+    <td><strong>录制 UI 操作</strong></td>
+    <td>用户每次点击菜单/按钮/交互 → 自动生成对应 <code>medaxis.*</code> API 调用代码</td>
+    <td>Mimics Script Recorder</td>
+  </tr>
+  <tr>
+    <td><strong>录制 → 回放</strong></td>
+    <td>保存为 .py 脚本文件，可一键回放完整操作流程</td>
+    <td>Mimics Macro</td>
+  </tr>
+  <tr>
+    <td><strong>录制 → 编辑</strong></td>
+    <td>录制完成后自动在 Script Editor 中打开，用户可修改参数后重新执行</td>
+    <td>—</td>
+  </tr>
+  <tr>
+    <td><strong>批量处理</strong></td>
+    <td>同一脚本应用到多个患者/序列，实现批量自动化</td>
+    <td>Mimics Batch Processing</td>
+  </tr>
+  <tr>
+    <td><strong>Hook 触发器</strong></td>
+    <td>注册事件钩子：<code>on_volume_loaded</code> / <code>on_segmentation_done</code> / <code>on_view_changed</code> → 自动执行脚本</td>
+    <td>3D Slicer Event Observer</td>
+  </tr>
+</table>
+
+<h3>8.4 Script 安全模型</h3>
+<table>
+  <tr><th>级别</th><th>权限</th><th>适用场景</th></tr>
+  <tr>
+    <td><strong>Sandboxed</strong></td>
+    <td>只读 medaxis API、无法访问文件系统/网络/系统调用</td>
+    <td>MCP AI Agent 注入的代码</td>
+  </tr>
+  <tr>
+    <td><strong>Standard</strong></td>
+    <td>完整 medaxis API + 文件读写 (限用户目录)</td>
+    <td>用户自定义脚本</td>
+  </tr>
+  <tr>
+    <td><strong>Full</strong></td>
+    <td>无限制、可调用 subprocess / socket / 任意 Python 模块</td>
+    <td>开发者插件 & 高级用户</td>
+  </tr>
+</table>
+
+<h3>8.5 Script Editor 界面设计</h3>
+<div class="card">
+  <h3>🖊️ 功能清单</h3>
+  <ul>
+    <li><strong>嵌入式编辑器：</strong> 基于 QScintilla / Monaco Editor，语法高亮 + 自动缩进</li>
+    <li><strong>智能自动补全：</strong> <code>medaxis.</code> + Tab → 弹出 API 补全列表 + docstring 预览</li>
+    <li><strong>IPython 控制台：</strong> 内嵌 QtConsole，支持交互式探索和数据可视化 (matplotlib 内联)</li>
+    <li><strong>脚本库面板：</strong> 内置常用脚本模板 (如 "DICOM 批量导入"、"肺部分割"、"骨骼 STL 导出")</li>
+    <li><strong>一键运行 + 输出面板：</strong> 执行结果 / 错误 / print() 输出实时显示</li>
+    <li><strong>断点调试：</strong> 集成 pdb / debugpy 远程调试支持</li>
+  </ul>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="persistence">
+<h2>9. 数据持久化与工程闭环</h2>
+
+<div class="highlight-box info">
+  <strong>设计目标：</strong>补齐当前架构最大的短板——用户工作成果的保存与恢复。
+  包括工程文件 (.medaxis)、LabelMap 显式管理、系统化导出管线、Undo/Redo 命令栈、会话持久化与崩溃恢复。
+</div>
+
+<!-- 9.1 -->
+<h3>9.1 工程文件 (.medaxis)</h3>
+<p>
+  <b>对标：</b>3D Slicer <code>.mrml</code>、Mimics <code>.mcs</code>、ITK-SNAP <code>.itksnap</code>。
+  MedAxis 工程文件是一个 <b>ZIP 压缩包</b>，内部包含一个 JSON 场景描述文件 + 引用的二进制数据文件。
+</p>
+
+<h4>9.1.1 文件结构</h4>
+<pre><code>patient_study.medaxis               # ZIP 压缩包（改后缀为 .zip 可直接解压）
+├── scene.json                      # 场景描述（核心）
+├── volumes/                        # 原始影像数据（NIfTI 格式存储）
+│   ├── vol_001_ct.nii.gz
+│   ├── vol_002_ct_contrast.nii.gz
+│   └── vol_003_mri_t2.nii.gz
+├── labels/                         # 分割标签数据
+│   ├── label_001_lung.nii.gz
+│   ├── label_002_bone.nii.gz
+│   └── label_003_liver.nrrd
+├── meshes/                         # 表面网格
+│   ├── mesh_001_bone.stl
+│   └── mesh_002_vessel.ply
+├── measurements/                   # 测量标注
+│   └── measurements.json
+├── screenshots/                    # 截屏快照
+│   └── snapshot_001.png
+└── thumbnails/                     # 缩略图
+    └── thumbnail.png               # 工程文件预览图</code></pre>
+
+<h4>9.1.2 scene.json 结构设计</h4>
+<pre><code>{
+  "version": "1.0.0",
+  "created": "2025-08-08T10:30:00Z",
+  "modified": "2025-08-08T14:20:00Z",
+  "software": "MedAxis 0.1.0",
+
+  "patients": [{
+    "id": "patient-001",
+    "dicom_metadata": { "PatientName": "...", "PatientID": "...", ... },
+    "volumes": [
+      {
+        "id": "vol-001",
+        "type": "original",
+        "modality": "CT",
+        "file": "volumes/vol_001_ct.nii.gz",
+        "spacing": [0.75, 0.75, 1.0],
+        "origin": [-150.0, -150.0, -200.0],
+        "direction": [[1,0,0],[0,1,0],[0,0,1]],
+        "window_level_presets": {
+          "lung": {"window": 1500, "level": -600},
+          "mediastinum": {"window": 400, "level": 40},
+          "bone": {"window": 2000, "level": 300}
+        }
+      }
+    ]
+  }],
+
+  "labels": [
+    {
+      "id": "label-001",
+      "name": "Lung Segmentation",
+      "parent_volume_id": "vol-001",
+      "file": "labels/label_001_lung.nii.gz",
+      "color": [0.2, 0.8, 0.3, 0.6],
+      "opacity": 0.6,
+      "visible": true,
+      "class_names": { "1": "left_lung", "2": "right_lung", "3": "trachea" },
+      "created_by": "algorithm:watershed",
+      "created_at": "2025-08-08T11:00:00Z"
+    }
+  ],
+
+  "meshes": [
+    {
+      "id": "mesh-001",
+      "name": "Bone Surface",
+      "parent_label_id": "label-002",
+      "file": "meshes/mesh_001_bone.stl",
+      "color": [0.9, 0.85, 0.7],
+      "opacity": 1.0,
+      "visible": true,
+      "vertex_count": 125000,
+      "face_count": 250000
+    }
+  ],
+
+  "views": {
+    "layout": "four_up",
+    "views": [
+      {
+        "id": "view-axial",
+        "type": "slice",
+        "volume_id": "vol-001",
+        "orientation": "axial",
+        "slice_index": 120,
+        "window": 400,
+        "level": 40,
+        "zoom": 1.2,
+        "pan": [10.5, -5.2],
+        "crosshair_linked": true
+      },
+      {
+        "id": "view-coronal",
+        "type": "slice",
+        "volume_id": "vol-001",
+        "orientation": "coronal",
+        "slice_index": 85,
+        "window": 400,
+        "level": 40
+      },
+      {
+        "id": "view-sagittal",
+        "type": "slice",
+        "volume_id": "vol-001",
+        "orientation": "sagittal",
+        "slice_index": 96
+      },
+      {
+        "id": "view-3d",
+        "type": "volume",
+        "volume_id": "vol-001",
+        "transfer_function_id": "tf-001",
+        "camera": {
+          "position": [200, -300, 150],
+          "focal_point": [0, 0, 0],
+          "view_up": [0, 0, 1]
+        },
+        "overlay_labels": ["label-001"],
+        "overlay_meshes": ["mesh-001"]
+      }
+    ]
+  },
+
+  "measurements": [
+    {
+      "id": "meas-001",
+      "type": "distance",
+      "points": [[10.2, 25.3, 45.1], [50.8, 60.2, 45.1]],
+      "result_mm": 48.5,
+      "label": "Tumor diameter"
+    },
+    {
+      "id": "meas-002",
+      "type": "angle",
+      "points": [[0,0,0],[10,0,0],[5,8,0]],
+      "result_deg": 38.7
+    }
+  ],
+
+  "transfer_functions": [
+    {
+      "id": "tf-001",
+      "name": "CT Default",
+      "opacity_points": [[-1000,0.0],[-200,0.0],[0,0.3],[100,0.5],[500,1.0]],
+      "color_points": [[-1000,[0,0,0]],[-200,[0.2,0.2,0.2]],[0,[0.8,0.5,0.3]],[500,[1,1,1]]]
+    }
+  ],
+
+  "plugins_state": {},
+  "user_notes": "术前评估 — 肺部结节可疑，建议增强扫描确认。"
+}</code></pre>
+
+<h4>9.1.3 工程文件操作</h4>
+<table>
+  <tr><th>操作</th><th>快捷键</th><th>说明</th></tr>
+  <tr><td><strong>新建工程</strong></td><td>Ctrl+N</td><td>清空当前状态，创建空白工作区</td></tr>
+  <tr><td><strong>打开工程</strong></td><td>Ctrl+O</td><td>加载 .medaxis → 解压 → 解析 scene.json → 恢复全部状态</td></tr>
+  <tr><td><strong>保存工程</strong></td><td>Ctrl+S</td><td>序列化当前状态 → 写入 scene.json + volumes/labels/meshes → ZIP 打包</td></tr>
+  <tr><td><strong>另存为</strong></td><td>Ctrl+Shift+S</td><td>保存为新的 .medaxis，原始文件不变</td></tr>
+  <tr><td><strong>自动保存</strong></td><td>—</td><td>每 5 分钟自动保存到 <code>~/.medaxis/autosave/</code></td></tr>
+  <tr><td><strong>崩溃恢复</strong></td><td>—</td><td>启动时检测 autosave 目录，提示用户恢复上次未保存的工作</td></tr>
+</table>
+
+<!-- 9.2 -->
+<h3>9.2 LabelMap 显式管理</h3>
+<p>
+  当前架构中 LabelMap 以隐式 numpy array 存在。现增加显式的 <b>LabelData</b> 数据模型和 <b>LabelPanel</b> 管理面板，
+  对标 3D Slicer 的 Segment Editor。
+</p>
+
+<h4>LabelData 数据模型</h4>
+<pre><code># core/label_data.py
+class LabelData:
+    """单个分割标签的完整描述"""
+    id: str                          # 唯一标识
+    name: str                        # 显示名称 (e.g. "Lung Segmentation")
+    parent_volume_id: str            # 所属 VolumeData
+    array: np.ndarray                # 标签数据 (int16/uint8, 共享内存)
+    color: tuple[float,float,float,float]  # RGBA
+    opacity: float                   # 0.0 - 1.0
+    visible: bool                    # 是否显示
+
+    class_names: dict[int, str]      # {1:"left_lung", 2:"right_lung"}
+    class_colors: dict[int, tuple]   # {1:(0.2,0.8,0.3), 2:(0.3,0.2,0.9)}
+
+    source: str                      # "manual" | "algorithm:threshold" | "ai:totalsegmentator"
+    created_at: datetime
+    modified_at: datetime
+
+    # 3D 重建缓存
+    mesh: MeshData | None
+    mesh_auto_update: bool           # LabelMap 变化时自动重建 Mesh
+
+    # 统计 (惰性计算)
+    _stats_cache: LabelStats | None
+
+    def compute_stats(self) -> LabelStats:
+        """计算体积/表面积/平均HU/最大径等统计"""
+
+    def get_contour(self, slice_index: int, axis: str) -> list[Point]:
+        """获取指定切片的轮廓线 (用于 2D overlay)"""
+
+    def to_mesh(self, method="marching_cubes") -> MeshData:
+        """生成表面网格"""</code></pre>
+
+<h4>LabelPanel UI (对标 3D Slicer Segment Editor)</h4>
+<table>
+  <tr><th>功能</th><th>说明</th></tr>
+  <tr><td><strong>Label 列表</strong></td><td>树形列表：每个 Label 一行，显示名称/颜色块/可见性眼睛图标/体积</td></tr>
+  <tr><td><strong>新建 Label</strong></td><td>创建空 LabelMap（全0），指定名称和颜色</td></tr>
+  <tr><td><strong>删除 Label</strong></td><td>确认对话框 + Undo 支持</td></tr>
+  <tr><td><strong>重命名</strong></td><td>双击编辑</td></tr>
+  <tr><td><strong>颜色编辑</strong></td><td>点击颜色块 → 调色板</td></tr>
+  <tr><td><strong>透明度滑块</strong></td><td>0% (不可见) ~ 100% (不透明)</td></tr>
+  <tr><td><strong>可见性切换</strong></td><td>眼睛图标 开/关</td></tr>
+  <tr><td><strong>拖拽排序</strong></td><td>决定渲染顺序（上层遮挡下层）</td></tr>
+  <tr><td><strong>右键菜单</strong></td><td>Export Label / Rebuild Mesh / Statistics / Duplicate / Fill Holes</td></tr>
+  <tr><td><strong>Label 间布尔运算</strong></td><td>Union / Intersect / Subtract / Mask (合并/交集/减去/遮罩)</td></tr>
+</table>
+
+<!-- 9.2b 手动编辑工具 -->
+<h3>9.2b 手动编辑工具（画笔 / 橡皮擦 / 智能填充）</h3>
+<p>
+  对标 3D Slicer Segment Editor 的 Paint / Erase / Fill 工具和 Mimics 的 Mask Editing 工具。
+  所有操作封装为 <b>EditLabelCommand</b>，完整支持 Undo/Redo。
+</p>
+
+<h4>工具清单</h4>
+<table>
+  <tr><th>工具</th><th>图标</th><th>快捷键</th><th>说明</th></tr>
+  <tr>
+    <td><strong>画笔 (Paint)</strong></td>
+    <td>🖌️</td>
+    <td><code>P</code></td>
+    <td>在切片视图上涂抹以添加 voxel 到当前 Label。圆形笔刷，支持调节大小 (1-100 voxel)。支持 Sphere / Box / Gaussian 三种笔刷形状</td>
+  </tr>
+  <tr>
+    <td><strong>橡皮擦 (Erase)</strong></td>
+    <td>🧹</td>
+    <td><code>E</code></td>
+    <td>涂抹以从当前 Label 中移除 voxel。笔刷大小和形状与画笔共用</td>
+  </tr>
+  <tr>
+    <td><strong>智能填充 (Smart Fill)</strong></td>
+    <td>🪣</td>
+    <td><code>F</code></td>
+    <td>点击封闭区域内部 → 自动检测边界 → 填充整个连通区域。基于 ITK FloodFill 或阈值连通域</td>
+  </tr>
+  <tr>
+    <td><strong>阈值画笔 (Threshold Paint)</strong></td>
+    <td>🎯</td>
+    <td><code>Shift+P</code></td>
+    <td>涂抹时自动跳过不在阈值范围内的 voxel。阈值取自当前窗宽窗位或手动设定</td>
+  </tr>
+  <tr>
+    <td><strong>轮廓圈选 (Lasso / Freehand)</strong></td>
+    <td>✏️</td>
+    <td><code>L</code></td>
+    <td>在当前切片上绘制闭合轮廓 → 内部区域全部填充到当前 Label</td>
+  </tr>
+  <tr>
+    <td><strong>矩形/椭圆圈选</strong></td>
+    <td>⬜</td>
+    <td><code>R</code></td>
+    <td>拖拽矩形或椭圆 → 内部区域填充到当前 Label</td>
+  </tr>
+  <tr>
+    <td><strong>层间插值 (Interpolate)</strong></td>
+    <td>🔗</td>
+    <td><code>I</code></td>
+    <td>在两个已标注的切片之间自动插值中间层（形态学轮廓插值），对标 3D Slicer Fill Between Slices</td>
+  </tr>
+  <tr>
+    <td><strong>3D 剪刀 (Scissors 3D)</strong></td>
+    <td>✂️</td>
+    <td><code>S</code></td>
+    <td>在任意 MPR 斜面上画线 → 沿该平面切割 Label，将 Label 一分为二。常用于分离粘连结构</td>
+  </tr>
+  <tr>
+    <td><strong>岛屿移除 (Island Remove)</strong></td>
+    <td>🏝️</td>
+    <td><code>Del</code></td>
+    <td>点击一个连通分量 → 自动检测并移除该"孤岛"（keep-largest-component 的交互版本）</td>
+  </tr>
+</table>
+
+<h4>画笔/橡皮擦 C++ 实现</h4>
+<pre><code>// native/itk_ext/segmentation/medAxisBrushFilter.h
+// 继承 itk::ImageToImageFilter，接收：
+//   - Input LabelMap (itk::Image<unsigned short, 3>)
+//   - BrushStrokes (vector of {center_ijk, radius_voxel, shape, value, operation})
+// 输出修改后的 LabelMap
+// 仅修改笔刷 bounding box 内的 voxel → O(brush_radius³) 而非 O(volume_size)
+
+class MedAxisBrushFilter : public itk::ImageToImageFilter<TLabelImage, TLabelImage> {
+public:
+  enum BrushShape { Sphere = 0, Box = 1, Gaussian3D = 2 };
+  enum Operation { Paint = 0, Erase = 1, ThresholdPaint = 2 };
+
+  void AddStroke(const BrushStroke& stroke);  // 批量累积笔触
+  void ClearStrokes();
+
+  // RequestData() 中一次性应用所有累积的笔触到 LabelMap
+};</code></pre>
+
+<h4>LabelEditor Widget (嵌入 SliceView)</h4>
+<table>
+  <tr><th>功能</th><th>说明</th></tr>
+  <tr><td><strong>笔刷预览</strong></td><td>鼠标悬停时在切片上显示半透明圆形笔刷预览（半径按 voxel 单位）</td></tr>
+  <tr><td><strong>3D 笔刷</strong></td><td>画笔和橡皮擦作用于 3D 球体而非单个切片——涂抹当前切片时同时影响相邻 N 层切片（可配置 1/3/5/All）</td></tr>
+  <tr><td><strong>笔刷参数面板</strong></td><td>浮动或嵌入右侧栏：直径滑块 [1-100]、形状选择 (Sphere/Box/Gaussian)、3D 深度、不透明度</td></tr>
+  <tr><td><strong>遮罩叠加显示</strong></td><td>Label 以半透明色块叠加在灰度影像上。当前编辑的 Label 高亮描边。可切换 overlay 模式 (Fill / Outline / Both)</td></tr>
+  <tr><td><strong>实时预览</strong></td><td>鼠标按下拖动时实时更新叠加层；鼠标释放时提交 EditLabelCommand 到 UndoStack</td></tr>
+  <tr><td><strong>跨视图编辑</strong></td><td>在一个视图涂抹时，另外两个正交视图同步更新遮罩叠加。多视图一致性由 LabelData 共享内存保证</td></tr>
+</table>
+
+<!-- 9.3 -->
+<h3>9.3 系统化导出管线</h3>
+<table>
+  <tr><th>导出类型</th><th>格式</th><th>数据源</th><th>用途</th></tr>
+  <tr>
+    <td><strong>原始影像导出</strong></td>
+    <td>NIfTI (.nii.gz) / NRRD (.nrrd) / MetaImage (.mha)</td>
+    <td>VolumeData</td>
+    <td>分享给其他软件分析、AI 训练数据准备</td>
+  </tr>
+  <tr>
+    <td><strong>分割标签导出</strong></td>
+    <td>NIfTI (.nii.gz) / NRRD (.nrrd) / DICOM SEG</td>
+    <td>LabelData</td>
+    <td>分享分割结果、PACS 归档、论文发表</td>
+  </tr>
+  <tr>
+    <td><strong>DICOM 回写</strong></td>
+    <td>DICOM Secondary Capture (SC) / DICOM SEG / DICOM SR</td>
+    <td>VolumeData + LabelData + Measurements</td>
+    <td>**临床必需**：将分割结果和测量报告传回 PACS/HIS</td>
+  </tr>
+  <tr>
+    <td><strong>表面网格导出</strong></td>
+    <td>STL / OBJ / PLY / 3MF / VTK</td>
+    <td>MeshData</td>
+    <td>3D 打印、有限元分析、CAD 导入</td>
+  </tr>
+  <tr>
+    <td><strong>截屏导出</strong></td>
+    <td>PNG / JPEG / TIFF / DICOM SC</td>
+    <td>当前视图</td>
+    <td>报告插图、论文配图</td>
+  </tr>
+  <tr>
+    <td><strong>报告导出</strong></td>
+    <td>PDF / HTML / JSON</td>
+    <td>测量结果 + 患者信息 + 截屏</td>
+    <td>临床报告、MDT 讨论</td>
+  </tr>
+  <tr>
+    <td><strong>视频导出</strong></td>
+    <td>MP4 (H.264)</td>
+    <td>Cine 模式录制</td>
+    <td>教学演示、远程会诊</td>
+  </tr>
+</table>
+
+<!-- 9.4 -->
+<h3>9.4 Undo/Redo 命令栈</h3>
+<p>
+  基于 <b>Qt QUndoStack</b> 的命令模式。所有用户可感知的状态变更（分割、编辑、测量、视图操作）都封装为 QUndoCommand 子类。
+</p>
+
+<h4>命令类型清单</h4>
+<table>
+  <tr><th>命令</th><th>Undo 操作</th><th>Redo 操作</th></tr>
+  <tr>
+    <td><code>EditLabelCommand</code></td>
+    <td>恢复 LabelData.array 的旧版本（差分存储）</td>
+    <td>重新应用修改</td>
+  </tr>
+  <tr>
+    <td><code>DeleteLabelCommand</code></td>
+    <td>恢复 LabelData 到 LabelManager</td>
+    <td>重新删除</td>
+  </tr>
+  <tr>
+    <td><code>AddMeasurementCommand</code></td>
+    <td>移除测量标注</td>
+    <td>重新添加</td>
+  </tr>
+  <tr>
+    <td><code>MoveMeasurementCommand</code></td>
+    <td>移动回旧位置</td>
+    <td>移动到新位置</td>
+  </tr>
+  <tr>
+    <td><code>ChangeViewCommand</code></td>
+    <td>恢复旧视图参数 (slice/window/level/zoom/pan)</td>
+    <td>应用新视图参数</td>
+  </tr>
+  <tr>
+    <td><code>RunAlgorithmCommand</code></td>
+    <td>移除算法产生的 LabelData</td>
+    <td>重新执行算法（参数已记录）</td>
+  </tr>
+  <tr>
+    <td><code>CropVolumeCommand</code></td>
+    <td>恢复原始 VolumeData</td>
+    <td>重新裁剪</td>
+  </tr>
+</table>
+
+<h4>差分存储优化 (LabelData)</h4>
+<p>
+  LabelData 可达几十 MB，全量复制不可行。采用 <b>稀疏差分</b> 策略：
+  仅存储修改区域的 bounding box + 修改前后的 voxel 差异。典型画笔涂抹操作仅需存储 ~KB 级别的差分数据。
+</p>
+
+<h4>内存管理</h4>
+<table>
+  <tr><th>策略</th><th>说明</th></tr>
+  <tr><td><strong>最大 Undo 步数</strong></td><td>默认 200 步，可配置。超过后最早的历史被丢弃</td></tr>
+  <tr><td><strong>内存上限</strong></td><td>Undo 栈总内存 ≤ 500MB，超过后自动压缩/丢弃最旧条目</td></tr>
+  <tr><td><strong>内存监控</strong></td><td>状态栏显示 Undo 栈当前使用量</td></tr>
+</table>
+
+<!-- 9.5 -->
+<h3>9.5 其他工作流增强</h3>
+
+<h4>窗宽窗位预设管理</h4>
+<table>
+  <tr><th>预设名</th><th>模态</th><th>Window</th><th>Level</th><th>用途</th></tr>
+  <tr><td>CT Lung</td><td>CT</td><td>1500</td><td>-600</td><td>肺部</td></tr>
+  <tr><td>CT Mediastinum</td><td>CT</td><td>400</td><td>40</td><td>纵隔</td></tr>
+  <tr><td>CT Bone</td><td>CT</td><td>2000</td><td>300</td><td>骨骼</td></tr>
+  <tr><td>CT Brain</td><td>CT</td><td>80</td><td>40</td><td>脑实质</td></tr>
+  <tr><td>CT Abdomen</td><td>CT</td><td>400</td><td>50</td><td>腹部软组织</td></tr>
+  <tr><td>MR T1 Brain</td><td>MR</td><td>— (auto)</td><td>— (auto)</td><td>T1 加权脑</td></tr>
+  <tr><td>MR T2 Brain</td><td>MR</td><td>— (auto)</td><td>— (auto)</td><td>T2 加权脑</td></tr>
+  <tr><td>PET SUV</td><td>PET</td><td>0-10 SUV</td><td>—</td><td>标准摄取值</td></tr>
+</table>
+
+<h4>Cine 模式</h4>
+<table>
+  <tr><th>功能</th><th>说明</th></tr>
+  <tr><td><strong>播放/暂停</strong></td><td>Space 键，自动翻切片</td></tr>
+  <tr><td><strong>FPS 调节</strong></td><td>1/2/5/10/15/30 FPS 可调</td></tr>
+  <tr><td><strong>循环模式</strong></td><td>单向 / 往返 / 单次</td></tr>
+  <tr><td><strong>录制</strong></td><td>Cine 期间可录制为 MP4</td></tr>
+</table>
+
+<h4>对比视图</h4>
+<table>
+  <tr><th>模式</th><th>说明</th></tr>
+  <tr><td><strong>Side-by-Side</strong></td><td>左右并排两套四视图，每个可绑定不同 Volume</td></tr>
+  <tr><td><strong>Linked Scrolling</strong></td><td>勾选后两个视图同步翻切片（基于解剖位置对齐）</td></tr>
+  <tr><td><strong>Overlay</strong></td><td>一个 Volume 叠加到另一个上（如 PET/CT 融合）</td></tr>
+  <tr><td><strong>Subtraction</strong></td><td>两个 Volume 逐体素相减（如增强前后对比）</td></tr>
+</table>
+</section>
+
+<!-- ================================================================== -->
+<section id="todo">
+<h2>10. 开发计划 (TODO)</h2>
+
+<!-- Phase 0 -->
+<div class="phase">
+  <h3>📅 Phase 0 — C++ 编译环境 & 绑定基础设施</h3>
+  <div class="meta">预估工期: 2 周 ｜ 优先级: 🔴 最高 ｜ <strong>本阶段全部是 C++ 工作</strong></div>
+  <ul class="task-list">
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>CMake 顶层构建系统：</strong> 根 CMakeLists.txt，集成 VTK/ITK/CGAL/OCC find_package、pybind11 子模块、MSVC 多配置支持</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>native/bridge/data_bridge.cpp：</strong> DataBridge 类：分配连续内存、构造 vtkImageData + itkImage、pybind11 buffer_info 暴露给 numpy（零拷贝）</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>VTK 扩展模块骨架：</strong> native/vtk_ext/CMakeLists.txt + vtkMedAxisModule.cmake、一个 HelloWorld vtkAlgorithm 验证编译和 Python import</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>ITK 扩展模块骨架：</strong> native/itk_ext/CMakeLists.txt、一个 HelloWorld itk::ImageToImageFilter 验证 WrapITK 生成</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>CGAL pybind11 模块骨架：</strong> native/cgal_ext/CMakeLists.txt、mesh_reconstruct 空壳、验证编译和 Python import</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>CI 构建流水线：</strong> GitHub Actions: Windows MSVC + Ubuntu GCC，CMake 编译 + 单元测试 + wheel 打包</span>
+    </li>
+  </ul>
+</div>
+
+<!-- Phase 1 -->
+<div class="phase p1">
+  <h3>📅 Phase 1 — Python 基础设施 & 项目骨架</h3>
+  <div class="meta">预估工期: 2 周 ｜ 优先级: 🔴 最高</div>
+  <ul class="task-list">
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>项目初始化：</strong> pyproject.toml、poetry 依赖管理、.gitignore、pre-commit hooks、Python 目录结构搭建</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>Python-Qt 主窗口框架：</strong> QMainWindow + QDockWidget 布局、暗色主题 QSS、菜单栏/状态栏</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>AppController：</strong> 全局事件总线（信号槽）、Workspace 管理器</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>日志 + 测试：</strong> 结构化 logging、pytest + pytest-qt</span>
+    </li>
+  </ul>
+</div>
+
+<!-- Phase 2 -->
+<div class="phase p2">
+  <h3>📅 Phase 2 — 数据 I/O & 核心数据模型</h3>
+  <div class="meta">预估工期: 3 周 ｜ 优先级: 🔴 最高</div>
+  <ul class="task-list">
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>DICOM Reader (Python)：</strong> pydicom 解析 + GDCM 解压、单文件/文件夹/批量导入、异步加载 (QThread)</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>SeriesBuilder (Python)：</strong> 按 SeriesInstanceUID 分组 → 排序 → 通过 DataBridge (C++) 创建 VolumeData</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>NIfTI Reader (Python)：</strong> nibabel 解析 → DataBridge (C++) 创建 VolumeData</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>DataBridge 完善 (C++)：</strong> 接收 numpy array / raw buffer、统一转为 vtkImageData + itkImage、处理 DICOM 坐标系变换矩阵</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>PatientModel (Python)：</strong> DICOM Patient/Study/Series 层级、QTreeView 展示</span>
+    </li>
+  </ul>
+</div>
+
+<!-- Phase 3 -->
+<div class="phase p3">
+  <h3>📅 Phase 3 — 渲染引擎 (C++ VTK + Python 编排)</h3>
+  <div class="meta">预估工期: 5 周 ｜ 优先级: 🟡 高</div>
+  <ul class="task-list">
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>VTK Engine 初始化 (Python)：</strong> QVTKRenderWindowInteractor、渲染循环</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>2D Slice Renderer (Python+C++)：</strong> vtkImageActor + vtkImageReslice 正交三平面、窗宽窗位</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>MedAxisResliceFilter (C++)：</strong> 高性能 MPR 重切片 vtkAlgorithm、支持三线性/Bicubic/Sinc 插值、SIMD 加速、GPU 纹理采样路径</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>MPR Renderer (Python)：</strong> Plane Reslice 交互（vtkResliceCursor 或自定义 Plane Widget）、三平面联动十字线</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>CPR Renderer (Python+C++)：</strong> 调用 OCC 曲线 + MedAxisResliceFilter.ResliceAlongCurve() (C++)、展开视图（拉直/拉伸）</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>3D Volume Renderer (Python)：</strong> GPU Ray Casting、传递函数编辑器、Lighting/Shading</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>标注叠加层 (Python)：</strong> 十字线、刻度尺、ROI、DICOM Overlay</span>
+    </li>
+  </ul>
+</div>
+
+<!-- Phase 4 -->
+<div class="phase p4">
+  <h3>📅 Phase 4 — 图像处理·分割·重建·配准·影像组学 (C++ ITK + CGAL + VTK)</h3>
+  <div class="meta">预估工期: 8 周 ｜ 优先级: 🟡 高 ｜ 对标 3D Slicer 全算法集</div>
+  <ul class="task-list">
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>AlgorithmRegistry (Python)：</strong> 全局算法注册中心、参数 Schema (Pydantic)、统一进度回调、Pipeline 链式组合</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>滤波算法 12 项 (Python 编排 + C++ ITK)：</strong> Gaussian / Median / Bilateral / Anisotropic Diffusion / NL-Means / Gradient / Laplacian / Sobel / Canny / Mean / Normalize / Discrete Gaussian</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>形态学算法 14 项 (C++ ITK Filter)：</strong> Binary/Grayscale Erode/Dilate/Open/Close + TopHat/BottomHat + Gradient + HoleFilling + Thinning + DistanceMap + ConnectedComponents</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>阈值分割 10 项 (C++ ITK Filter)：</strong> Otsu / Manual Range / Adaptive / IsoData / MaximumEntropy / Moments / RenyiEntropy / Huang / Intermodes / Li</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>高级分割 17 项 (C++ ITK Filter + 自研)：</strong> Connected/Confidence/Neighborhood Threshold + Watershed×2 + Level Set×4 + FastMarching + GraphCut + RandomWalker + GrowCut + FCM + KMeans + <strong style="color:#58a6ff;">FloodFill (泛洪填充)</strong> + <strong style="color:#58a6ff;">AutoFill (自动填充/Fill Between Slices)</strong></span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>三维重建 6 项 (C++ VTK + CGAL)：</strong> MarchingCubes / FlyingEdges / SurfaceNets / Poisson / AdvancingFront / Delaunay</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>表面处理 9 项 (C++ CGAL pybind11)：</strong> Smooth (Laplacian/Taubin/WindowedSinc) / Decimation / Subdivision / HoleFilling / Boolean(Union/Intersect/Diff) / Curvature / SurfaceStats / MeshToLabel / <strong style="color:#58a6ff;">ContourInterpolation (AutoFill)</strong></span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>图像配准 6 项 (C++ ITK)：</strong> Rigid(Versor) / Affine / BSpline Deformable / Demons×3 (Classic/Diffeomorphic/FastSymmetric) / SyN (ANTs 封装)</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>图像算术 & 增强 (Python 编排)：</strong> Add/Sub/Mul/Div/Mask/Invert/Cast + Resample/Crop/Pad/Flip/Permute + CLAHE/HistogramEQ/WindowLevel/Log/Gamma</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>影像组学 (C++ pybind11)：</strong> FirstOrder(18) + GLCM(24) + GLRLM(16) + GLSZM(16) + GLDM(14) + NGTDM(5) + Shape2D(10) + Shape3D(16) = 119 个特征</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>统一 UI 面板 (Python Qt)：</strong> AlgorithmPanel — 分类树形视图 → 参数表单 → Preview → Run、Queue 队列管理、结果历史</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>MCP Tool 集成：</strong> 所有算法通过 <code>run_algorithm</code> Tool 暴露给 AI Agent、参数 schema 自动生成 JSON Schema</span>
+    </li>
+  </ul>
+</div>
+
+<!-- Phase 5 -->
+<div class="phase p5">
+  <h3>📅 Phase 5 — MCP 协议 & AI 集成</h3>
+  <div class="meta">预估工期: 3 周 ｜ 优先级: 🔵 中</div>
+  <ul class="task-list">
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>MCP Server 核心 (Python)：</strong> JSON-RPC 2.0、stdio/SSE 双传输、工具路由 + 参数校验</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>Image & View Tools (Python)：</strong> open/close/切片/窗宽窗位/截图</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>Segmentation & Analysis Tools (Python→C++)：</strong> 执行分割、统计、导出</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio low">P2</span>
+      <span><strong>AI 辅助 & 安全：</strong> 自然语言参数建议、权限分级、审计日志</span>
+    </li>
+  </ul>
+</div>
+
+<!-- Phase 5b -->
+<div class="phase" style="border-left-color:#f778ba;">
+  <h3>📅 Phase 5b — Script 脚本模块（对标 Mimics Python Console）</h3>
+  <div class="meta">预估工期: 3 周 ｜ 优先级: 🔵 中</div>
+  <ul class="task-list">
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>medaxis API 层 (Python)：</strong> data / io / views / algorithms / mcp / ui 六大命名空间，面向用户的稳定接口封装</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>IPython 控制台 (Python)：</strong> 嵌入 QtConsole，交互式 REPL、Tab 自动补全、matplotlib 内联绘图、对象查看器</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>Script Editor (Python Qt)：</strong> QScintilla 语法高亮、智能补全 (jedi/lsp)、代码折叠、行号、执行按钮 + 快捷键</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>Action Recorder (Python)：</strong> Hook 系统捕获 UI 操作 → 生成 medaxis API 代码、录制/停止/保存/回放</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>Script Manager (Python)：</strong> 脚本库面板、内置模板 (DICOM批量导入、肺部分割、骨骼STL导出、测量报告)、收藏/历史/导入导出</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>Sandbox 安全模型：</strong> 三级权限 (Sandboxed/Standard/Full)、代码执行限制、资源配额、超时中断</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>MCP → Script 双向桥：</strong> MCP 可注入代码到 Sandbox 执行、Script 可通过 medaxis.mcp 调用 Agent</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio low">P2</span>
+      <span><strong>远程调试：</strong> debugpy 集成、断点/单步/变量查看</span>
+    </li>
+  </ul>
+</div>
+
+<!-- Phase 6 -->
+<div class="phase" style="border-left-color:#da70d6;">
+  <h3>📅 Phase 6 — 几何引擎 & 高级可视化 (C++ 为主)</h3>
+  <div class="meta">预估工期: 3 周 ｜ 优先级: 🔵 中</div>
+  <ul class="task-list">
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>OCC 曲线采样 (C++ pybind11)：</strong> medaxis_occ.sample_curve() — 等弧长重参数化 + Frenet 标架</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>CGAL 网格工具 (C++ pybind11)：</strong> 各向同性 Remesh、孔洞填补、曲率估计、Poisson 重建</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio low">P2</span>
+      <span><strong>高级 CPR (C++ 全链路)：</strong> 血管中心线提取（ITK thinning + CGAL 最短路径）、自动拉直 CPR、环形展开 (Stent Planning)</span>
+    </li>
+  </ul>
+</div>
+
+<!-- Phase 7 -->
+<div class="phase" style="border-left-color:#79c0ff;">
+  <h3>📅 Phase 7 — 插件系统 & 生态</h3>
+  <div class="meta">预估工期: 2 周 ｜ 优先级: 🟢 低</div>
+  <ul class="task-list">
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>插件发现 (Python)：</strong> entry_points、PluginBase 抽象基类、manifest.json</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>插件类型：</strong> Reader / Tool / Segment / View</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio low">P2</span>
+      <span><strong>C++ 插件注册：</strong> 允许插件携带 .pyd 动态加载、MCP Tool 自动暴露</span>
+    </li>
+  </ul>
+</div>
+
+<!-- Phase 8 -->
+<div class="phase" style="border-left-color:#00d4aa;">
+  <h3>📅 Phase 8 — 数据持久化与工作流闭环</h3>
+  <div class="meta">预估工期: 4 周 ｜ 优先级: 🔴 最高 ｜ 补齐架构最大短板</div>
+  <ul class="task-list">
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>工程文件 .medaxis (Python)：</strong> scene.json Schema、ZIP 打包/解压、volumes/labels/meshes 子目录管理、保存/打开/另存为/自动保存/崩溃恢复</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>LabelData 模型 + LabelPanel (Python+Qt)：</strong> LabelData 类、LabelManager、LabelPanel UI（列表/颜色/透明度/可见性/布尔运算/轮廓线）</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>手动编辑工具 9 项 (Python+C++)：</strong> Paint/Ease/SmartFill/ThresholdPaint/Lasso/RectEllipse/Interpolate/Scissors3D/IslandRemove + MedAxisBrushFilter (C++ ITK) + LabelEditor Widget</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>系统化导出管线 (Python+C++)：</strong> NIfTI/NRRD/MetaImage/DICOM SEG/STL/OBJ/PLY/3MF/PNG/PDF 全格式导出菜单</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio high">P0</span>
+      <span><strong>Undo/Redo 命令栈 (Python+Qt)：</strong> QUndoStack + 7 种命令 + 稀疏差分 + 200步/500MB 限制</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>DICOM 输出：</strong> DICOM SC、DICOM SEG、DICOM SR、DICOM RTSTRUCT</span>
+    </li>
+    <li>
+      <span class="check"></span>
+      <span class="task-prio med">P1</span>
+      <span><strong>窗宽窗位预设 + Cine + 对比视图 + 会话持久化</strong></span>
+    </li>
+  </ul>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="directory">
+<h2>11. 目录结构（含 C++ 源文件）</h2>
+<pre><code>MedAxis/
+├── native/                          # 🔧 C++ Native 层 — 所有性能敏感代码
+│   ├── CMakeLists.txt               # 顶层 CMake: find_package + add_subdirectory
+│   ├── cmake/                       # CMake 辅助模块
+│   │   └── FindCGAL.cmake
+│   │
+│   ├── bridge/                      # Zero-Copy 数据桥接
+│   │   ├── CMakeLists.txt
+│   │   ├── data_bridge.h
+│   │   ├── data_bridge.cpp          # DataBridge 核心实现
+│   │   └── pybind11_bridge.cpp      # pybind11 绑定定义
+│   │
+│   ├── vtk_ext/                     # 自定义 VTK Filter (继承 vtkAlgorithm)
+│   │   ├── CMakeLists.txt
+│   │   ├── vtkMedAxisModule.cmake   # VTK 模块声明
+│   │   ├── vtkMedAxisResliceFilter.h
+│   │   ├── vtkMedAxisResliceFilter.cxx
+│   │   ├── vtkMedAxisCPRFilter.h
+│   │   └── vtkMedAxisCPRFilter.cxx
+│   │
+│   ├── itk_ext/                     # 自定义 ITK Filter (全部 C++)  [18+ 文件]
+│   │   ├── CMakeLists.txt
+│   │   ├── filtering/
+│   │   │   ├── medAxisBilateralFilter.h / .hxx
+│   │   │   ├── medAxisNLMeansFilter.h / .hxx
+│   │   │   └── medAxisPatchDenoiseFilter.h / .hxx
+│   │   ├── morphology/
+│   │   │   ├── medAxisMorphologyFilter.h / .hxx       # 统一形态学 (Erode/Dilate/Open/Close/TopHat/Gradient)
+│   │   │   ├── medAxisDistanceMapFilter.h / .hxx
+│   │   │   └── medAxisThinningFilter.h / .hxx
+│   │   ├── segmentation/
+│   │   │   ├── medAxisThresholdFilter.h / .hxx         # 统一阈值 (Otsu/Adaptive/IsoData/Entropy/Moments/Huang/Li)
+│   │   │   ├── medAxisRegionGrowFilter.h / .hxx
+│   │   │   ├── medAxisWatershedFilter.h / .hxx
+│   │   │   ├── medAxisLevelSetFilter.h / .hxx
+│   │   │   ├── medAxisGraphCutFilter.h / .hxx
+│   │   │   ├── medAxisRandomWalkerFilter.h / .hxx
+│   │   │   ├── medAxisGrowCutFilter.h / .hxx
+│   │   │   ├── medAxisFCMFilter.h / .hxx
+│   │   │   ├── medAxisFloodFillFilter.h / .hxx
+│   │   │   ├── medAxisAutoFillFilter.h / .hxx
+│   │   │   ├── medAxisBrushFilter.h / .hxx       # 画笔/橡皮擦/阈值画笔 3D Brush
+│   │   │   └── medAxisIslandRemoveFilter.h / .hxx
+│   │   └── registration/
+│   │       ├── medAxisRigidRegistration.h / .hxx
+│   │       ├── medAxisAffineRegistration.h / .hxx
+│   │       ├── medAxisBSplineRegistration.h / .hxx
+│   │       └── medAxisDemonsRegistration.h / .hxx
+│   │
+│   ├── cgal_ext/                    # CGAL pybind11 模块  [8 文件]
+│   │   ├── CMakeLists.txt
+│   │   ├── mesh_reconstruct.h / .cpp        # Poisson / Advancing Front / Delaunay
+│   │   ├── surface_processing.h / .cpp      # Smooth / Decimate / FillHoles / Boolean / Subdivide
+│   │   ├── curvature.h / .cpp              # Mean / Gaussian / Principal
+│   │   ├── shortest_path.h / .cpp
+│   │   └── pybind11_module.cpp             # PYBIND11_MODULE(medaxis_cgal, m)
+│   │
+│   ├── occ_ext/                     # OpenCASCADE 扩展 (pybind11)  [5 文件]
+│   │   ├── CMakeLists.txt
+│   │   ├── curve_sampling.h / .cpp          # 等弧长采样 · Frenet 标架
+│   │   ├── surface_utils.h / .cpp
+│   │   └── pybind11_module.cpp             # PYBIND11_MODULE(medaxis_occ, m)
+│   │
+│   └── radiomics_ext/               # 影像组学特征提取 (pybind11)  [6 文件]
+│       ├── CMakeLists.txt
+│       ├── first_order.h / .cpp             # 18 一阶统计特征
+│       ├── texture_features.h / .cpp        # GLCM(24) + GLRLM(16) + GLSZM(16) + GLDM(14) + NGTDM(5)
+│       ├── shape_features.h / .cpp          # 26 形状特征 (2D+3D)
+│       └── pybind11_module.cpp             # PYBIND11_MODULE(medaxis_radiomics, m)
+│
+├── app/                             # 🐍 Python 应用层
+│   ├── __init__.py
+│   ├── main.py                      # 程序入口
+│   ├── app_controller.py            # 全局调度
+│   └── workspace.py
+│
+├── ui/                              # 🐍 Python UI
+│   ├── __init__.py
+│   ├── main_window.py
+│   ├── panels/
+│   │   ├── dicom_browser.py
+│   │   ├── view_container.py
+│   │   ├── toolbar.py
+│   │   └── property_panel.py
+│   └── widgets/
+│       ├── slice_view.py
+│       ├── volume_view.py
+│       ├── mpr_view.py
+│       ├── cpr_view.py
+│       └── label_editor.py          # 手动编辑工具（画笔/橡皮擦/填充/圈选/剪刀/岛屿移除）+ 笔刷面板
+│
+├── scripts/                         # 🐍 Script 脚本模块（对标 Mimics Python Console）
+│   ├── __init__.py
+│   ├── medaxis_api.py               # 面向用户的 medaxis.* 命名空间
+│   ├── console.py                   # IPython QtConsole 嵌入
+│   ├── editor.py                    # Script Editor (QScintilla)
+│   ├── action_recorder.py           # UI 操作录制 → Python 代码
+│   ├── hook_system.py               # 事件钩子 (on_volume_loaded 等)
+│   ├── sandbox.py                   # 安全沙箱 + 三级权限
+│   ├── script_manager.py            # 脚本库管理
+│   └── templates/                   # 内置脚本模板
+│       ├── batch_dicom_import.py
+│       ├── lung_segmentation.py
+│       ├── bone_stl_export.py
+│       └── measurement_report.py
+│
+├── io/                              # 🐍 Python 文件 I/O  [~15 文件]
+│   ├── __init__.py
+│   ├── dicom_reader.py
+│   ├── dicom_writer.py              # DICOM SC / SEG / SR / RTSTRUCT 输出
+│   ├── nifti_reader.py
+│   ├── nifti_writer.py              # VolumeData / LabelData → NIfTI 输出
+│   ├── image_series.py
+│   ├── file_manager.py
+│   ├── project_io.py                # .medaxis 工程文件读/写/自动保存/崩溃恢复
+│   ├── export_manager.py            # 统一导出入口（协调所有导出格式）
+│   └── formats/
+│       ├── nrrd_reader.py
+│       ├── raw_reader.py
+│       ├── stl_writer.py
+│       ├── obj_writer.py
+│       └── base.py
+│
+├── core/                            # 🐍 Python 数据模型 (buffer 由 C++ bridge 管理)
+│   ├── __init__.py
+│   ├── image_data.py
+│   ├── volume_data.py
+│   ├── label_data.py                # LabelData 模型（名称/颜色/透明度/统计/轮廓线/Mesh缓存）
+│   ├── mesh_data.py                 # MeshData 模型
+│   ├── measurement_data.py          # MeasurementData（距离/角度/ROI统计）
+│   ├── patient_model.py
+│   ├── project.py                   # Project 模型（scene.json 数据结构）
+│   ├── undo_manager.py              # UndoManager（QUndoStack 封装、差分存储、内存管理）
+│   ├── transform.py
+│   └── units.py
+│
+├── rendering/                       # 🐍 Python VTK 编排 (调用 C++ Filter)
+│   ├── __init__.py
+│   ├── vtk_engine.py
+│   ├── volume_renderer.py
+│   ├── slice_renderer.py
+│   ├── mpr_renderer.py
+│   ├── cpr_renderer.py
+│   ├── transfer_function.py
+│   ├── interactor_styles.py
+│   └── helpers.py
+│
+├── processing/                      # 🐍 Python 算法编排层  [~45 文件]
+│   ├── __init__.py
+│   ├── algorithm_registry.py        # 全局算法注册中心 (所有算法在此注册)
+│   ├── pipeline.py                  # 链式 Pipeline: 滤波→分割→重建
+│   ├── progress_monitor.py          # 进度回调 + 取消令牌
+│   ├── parameters.py                # 参数 Schema 定义与 Pydantic 校验
+│   ├── filtering/
+│   │   ├── __init__.py
+│   │   ├── smoothing.py             # Gaussian / Median / Mean / Bilateral / NL-Means
+│   │   ├── edge_detection.py        # Gradient / Laplacian / Sobel / Canny
+│   │   └── normalization.py         # Rescale / Normalize / Cast
+│   ├── morphology/
+│   │   ├── __init__.py
+│   │   ├── binary_ops.py            # Binary Erode/Dilate/Open/Close
+│   │   ├── grayscale_ops.py         # Grayscale Erode/Dilate/Open/Close/TopHat/Gradient
+│   │   ├── hole_filling.py
+│   │   ├── skeleton.py              # Thinning / Medial Axis
+│   │   └── distance_map.py          # Signed Maurer / Danielsson
+│   ├── segmentation/
+│   │   ├── __init__.py
+│   │   ├── base.py                  # SegmentAlgorithm 抽象基类
+│   │   ├── threshold.py             # Otsu/Adaptive/IsoData/Entropy/Moments/Huang/Li/Intermodes/Renyi
+│   │   ├── region_growing.py        # Connected/Confidence/Neighborhood Connected
+│   │   ├── watershed.py             # Morphological / Gradient-based
+│   │   ├── level_set.py             # Geodesic / ShapeDetection / Threshold / Laplacian
+│   │   ├── fast_marching.py
+│   │   ├── graph_cut.py
+│   │   ├── random_walker.py
+│   │   ├── grow_cut.py
+│   │   └── clustering.py            # K-Means / Fuzzy C-Means
+│   ├── reconstruction/
+│   │   ├── __init__.py
+│   │   ├── marching_cubes.py        # Marching Cubes / Flying Edges (VTK)
+│   │   ├── surface_nets.py          # Surface Nets (CGAL)
+│   │   ├── poisson.py               # Poisson Reconstruction (CGAL)
+│   │   └── delaunay.py              # Delaunay Triangulation (CGAL)
+│   ├── surface/
+│   │   ├── __init__.py
+│   │   ├── smoothing.py             # Laplacian / Taubin / Windowed Sinc
+│   │   ├── decimation.py            # Quadric Decimation
+│   │   ├── subdivision.py           # Loop / Catmull-Clark (CGAL)
+│   │   ├── hole_filling.py          # Mesh Hole Filling (CGAL)
+│   │   ├── boolean_ops.py           # Union / Intersect / Difference (CGAL)
+│   │   └── curvature.py             # Mean / Gaussian / Principal / Min / Max
+│   ├── registration/
+│   │   ├── __init__.py
+│   │   ├── rigid.py
+│   │   ├── affine.py
+│   │   ├── bspline.py
+│   │   └── demons.py
+│   ├── arithmetic/
+│   │   ├── __init__.py
+│   │   ├── operations.py            # Add/Sub/Mul/Div/Mask/Invert/Cast
+│   │   └── resample.py              # Resample/Crop/Pad/Flip/PermuteAxes
+│   ├── enhancement/
+│   │   ├── __init__.py
+│   │   ├── clahe.py                 # CLAHE / Adaptive Histogram EQ
+│   │   └── window_level.py          # Intensity Windowing / Log / Gamma
+│   ├── radiomics/
+│   │   ├── __init__.py
+│   │   ├── extractor.py             # 统一特征提取入口 (调用 medaxis_radiomics.pyd)
+│   │   ├── first_order.py
+│   │   ├── texture.py               # GLCM / GLRLM / GLSZM / GLDM / NGTDM
+│   │   └── shape.py                 # 2D + 3D 形状特征
+│   └── utils.py                     # numpy ↔ ITK 零拷贝转换
+│
+├── geometry/                        # 🐍 Python 几何调用 (调用 C++ 模块)
+│   ├── __init__.py
+│   ├── occ_wrapper.py               # 封装 pythonocc + medaxis_occ
+│   └── cgal_wrapper.py              # 封装 medaxis_cgal
+│
+├── mcp/                             # 🐍 Python MCP
+│   ├── __init__.py
+│   ├── server.py
+│   ├── transport.py
+│   ├── router.py
+│   ├── tools/
+│   │   ├── image_tools.py
+│   │   ├── view_tools.py
+│   │   ├── segmentation_tools.py
+│   │   └── analysis_tools.py
+│   ├── resources.py
+│   └── auth.py
+│
+├── plugins/                         # 🐍 Python 插件系统  [~18 文件]
+│   ├── __init__.py
+│   ├── plugin_manager.py            # 插件发现 (entry_points + manifest.json)
+│   ├── plugin_base.py               # 五种基类: Algorithm / Model / Tool / View / Reader
+│   ├── algorithm_plugin.py          # AlgorithmPlugin 基类 — 注册经典 ITK 算法
+│   ├── model_plugin.py              # ModelPlugin 基类 — 注册 AI 模型 (.onnx/.pt + ModelDefinition)
+│   ├── tool_plugin.py               # ToolPlugin 基类 — 注册交互工具 (测量/标注/...)
+│   ├── view_plugin.py               # ViewPlugin 基类 — 注册新视图类型
+│   ├── reader_plugin.py             # ReaderPlugin 基类 — 注册新文件格式
+│   ├── registry.py                  # 全局注册表
+│   ├── model_zoo.py                 # Model Zoo 面板 — 浏览/下载/导入 AI 模型
+│   ├── model_downloader.py          # HuggingFace / Zenodo / 自定义 URL 下载
+│   └── builtin/                     # 内置插件
+│       ├── readers/
+│       │   └── dicom_reader_plugin.py
+│       └── tools/
+│           └── measurement_tool_plugin.py
+│
+├── plugins/api_clients/             # 🔌 AI API 客户端层  [~12 文件]
+│   ├── __init__.py
+│   ├── ai_client_base.py            # AIAPIClient 抽象基类
+│   ├── rest_client.py               # REST API 客户端 (aiohttp)
+│   ├── grpc_client.py               # gRPC 客户端
+│   ├── mcp_client.py                # MCP 跨 Agent 调用
+│   ├── dicomweb_client.py           # DICOMweb WADO-RS 客户端
+│   └── adapters/                    # 外部 AI 服务适配器
+│       ├── totalsegmentator_adapter.py
+│       ├── nnunet_adapter.py
+│       ├── medsam_adapter.py
+│       ├── monai_deploy_adapter.py
+│       └── generic_adapter.py
+│
+├── utils/                           # 🐍 Python 工具
+│   ├── __init__.py
+│   ├── config.py
+│   ├── logging_config.py
+│   ├── async_helpers.py
+│   └── gpu_monitor.py              # GPU 信息查询 (nvidia-smi / DirectX API)
+│
+├── tests/
+│   ├── test_native/                 # C++ 单元测试 (GoogleTest)
+│   │   └── CMakeLists.txt
+│   ├── test_io/
+│   ├── test_core/
+│   ├── test_rendering/
+│   ├── test_processing/
+│   └── test_mcp/
+│
+├── resources/                       # 静态资源
+│   ├── icons/
+│   ├── styles/
+│   │   └── dark_theme.qss
+│   └── presets/
+│       └── transfer_functions/
+│
+├── docs/
+│   └── design_plan.html
+│
+├── CMakeLists.txt                   # 顶层 CMake (转发到 native/)
+├── pyproject.toml
+├── setup.py                         # 包含 CMakeExtension (build_ext)
+├── .gitignore
+└── README.md
+</code></pre>
+</section>
+
+<!-- ================================================================== -->
+<section id="roadmap">
+<h2>12. 里程碑路线图</h2>
+<div class="mermaid-box dark">
+<div class="mermaid">
+gantt
+    title MedAxis Development Roadmap
+    dateFormat  YYYY-MM-DD
+    axisFormat  %m-%d
+
+    section Phase 0 (C++ 基础设施)
+    CMake + Bridge + 模块骨架      :p0, 2025-01-06, 14d
+
+    section Phase 1 (Python 骨架)
+    项目初始化 + Qt 主窗口         :p1, after p0, 10d
+    AppController + Workspace      :p1b, after p0, 10d
+
+    section Phase 2 (数据 I/O)
+    DICOM/NIfTI Reader + DataBridge :p2, after p1, 21d
+
+    section Phase 3 (渲染 C++ + Py)
+    VTK Engine + 2D Slice          :p3a, after p2, 12d
+    MedAxisResliceFilter (C++)     :p3b, after p2, 14d
+    MPR Plane + CPR (C++ core)     :p3c, after p3b, 14d
+    3D Volume Rendering            :p3d, after p3a, 10d
+
+    section Phase 4 (算法全栈 C++ + Py)
+    AlgorithmRegistry + Pipeline   :p4a, after p3a, 7d
+    滤波 12 项 + 形态学 14 项       :p4b, after p4a, 14d
+    阈值 10 项 + 分割 15 项         :p4c, after p4b, 14d
+    三维重建 6 + 表面处理 8         :p4d, after p4c, 14d
+    配准 6 + 影像组学 119 特征      :p4e, after p4d, 10d
+
+    section Phase 5 (MCP + Script)
+    MCP Server + Tools             :p5, after p4e, 20d
+    Script 模块 (medaxis API + 控制台 + 录制) :p5b, after p5, 20d
+
+    section Phase 6 (几何 C++)
+    OCC Curve + CGAL高级           :p6, after p5b, 20d
+
+    section Phase 7 (生态)
+    Plugin System                  :p7, after p6, 14d
+
+    section Phase 8 (工程闭环)
+    .medaxis + LabelPanel + Export  :p8, after p7, 20d
+    Undo/Redo + DICOM Out + Cine    :p8b, after p8, 14d
+</div>
+</div>
+</section>
+
+<!-- ================================================================== -->
+<section id="tech-stack">
+<h2>13. 技术选型说明</h2>
+<table>
+  <tr><th>技术</th><th>选型</th><th>语言</th><th>理由</th></tr>
+  <tr>
+    <td>Python Qt</td><td><strong>PySide6</strong></td><td><span class="lang-tag py">Python</span></td>
+    <td>LGPL 许可；官方 Qt for Python；信号槽机制天然适合事件驱动</td>
+  </tr>
+  <tr>
+    <td>VTK</td><td><strong>VTK 9.4+ C++</strong></td><td><span class="lang-tag cpp">C++</span> + <span class="lang-tag py">Py</span></td>
+    <td>医学影像可视化工业标准；VTK 9.4 最新稳定版；GPU Ray Casting / FlyingEdges3D / vtkImageReslice 等核心管线</td>
+  </tr>
+  <tr>
+    <td>ITK</td><td><strong>ITK 5.4+ C++</strong></td><td><span class="lang-tag cpp">C++</span> + <span class="lang-tag py">Py</span></td>
+    <td>医学图像处理工业标准；C++ 自定义 Filter 实现分割算法</td>
+  </tr>
+  <tr>
+    <td>OpenCASCADE</td><td><strong>OCCT 7.8+ C++</strong></td><td><span class="lang-tag cpp">C++</span></td>
+    <td>唯一成熟的开源 CAD 内核；B-Spline/NURBS 对 CPR 路径定义至关重要；pythonocc-core 提供主流绑定</td>
+  </tr>
+  <tr>
+    <td>CGAL</td><td><strong>CGAL 5.6+ C++</strong></td><td><span class="lang-tag cpp">C++</span></td>
+    <td>计算几何黄金标准；高质量网格重建与处理；pybind11 手写绑定</td>
+  </tr>
+  <tr>
+    <td>C++→Python 绑定</td><td><strong>pybind11</strong></td><td><span class="lang-tag cpp">C++</span></td>
+    <td>现代 C++ 绑定库；支持 numpy buffer_info 零拷贝；比 SWIG 更轻量和类型安全</td>
+  </tr>
+  <tr>
+    <td>DICOM I/O</td><td><strong>pydicom + GDCM</strong></td><td><span class="lang-tag py">Python</span></td>
+    <td>pydicom 是 Python DICOM 事实标准；GDCM 处理压缩传输语法</td>
+  </tr>
+  <tr>
+    <td>NIfTI I/O</td><td><strong>nibabel</strong></td><td><span class="lang-tag py">Python</span></td>
+    <td>最成熟的 Python NIfTI 库</td>
+  </tr>
+  <tr>
+    <td>MCP</td><td><strong>mcp (Anthropic SDK)</strong></td><td><span class="lang-tag py">Python</span></td>
+    <td>快速对接 Claude/GPT Agent</td>
+  </tr>
+  <tr>
+    <td>构建系统</td><td><strong>CMake 3.21+</strong></td><td><span class="lang-tag cmake">CMake</span></td>
+    <td>C++ 事实标准构建系统；VTK/ITK/OCCT/CGAL 均原生支持 CMake</td>
+  </tr>
+</table>
+</section>
+
+<!-- ================================================================== -->
+<section id="summary">
+<h2>14. Python / C++ 文件统计概览</h2>
+
+<div class="highlight-box info">
+  <strong>设计意图：</strong>这个项目的正确姿势是 <strong>~40% Python + ~60% C++</strong>（按代码量）。
+  Python 负责"胶水"——UI、MCP、插件、文件解析、Pipeline 搭建；
+  C++ 负责"引擎"——所有性能敏感的渲染、分割、几何运算都在 native/ 中完成。
+</div>
+
+<table>
+  <tr><th>目录</th><th>.py</th><th>.cpp / .cxx / .h / .hxx</th><th>CMakeLists.txt</th><th>职责</th></tr>
+  <tr><td><code>native/bridge/</code></td><td>0</td><td><strong>4</strong></td><td>1</td><td>零拷贝数据桥接</td></tr>
+  <tr><td><code>native/vtk_ext/</code></td><td>0</td><td><strong>5</strong></td><td>1</td><td>自研 VTK 渲染 Filter</td></tr>
+  <tr><td><code>native/itk_ext/</code></td><td>0</td><td><strong>44</strong></td><td>1</td><td>自研 ITK 滤波/形态学/分割/配准/画笔 Filter</td></tr>
+  <tr><td><code>native/cgal_ext/</code></td><td>0</td><td><strong>9</strong></td><td>1</td><td>CGAL pybind11 模块</td></tr>
+  <tr><td><code>native/occ_ext/</code></td><td>0</td><td><strong>6</strong></td><td>1</td><td>OCC 扩展 pybind11 模块</td></tr>
+  <tr><td><code>native/radiomics_ext/</code></td><td>0</td><td><strong>7</strong></td><td>1</td><td>影像组学特征提取 (C++ pybind11)</td></tr>
+  <tr style="background:#ffffff08;"><td><strong>native/ 合计</strong></td><td><strong>0</strong></td><td><strong>75+</strong></td><td><strong>6+</strong></td><td>全部 C++ 计算核心</td></tr>
+  <tr><td><code>app/</code></td><td>~4</td><td>0</td><td>0</td><td>应用入口</td></tr>
+  <tr><td><code>ui/</code></td><td>~18</td><td>0</td><td>0</td><td>Qt 界面 (含 LabelPanel/ExportPanel/LabelEditor)</td></tr>
+  <tr><td><code>io/</code></td><td>~15</td><td>0</td><td>0</td><td>文件 I/O (含写入/导出/工程文件)</td></tr>
+  <tr><td><code>core/</code></td><td>~10</td><td>0</td><td>0</td><td>数据模型 (含 LabelData/MeshData/Project/Undo)</td></tr>
+  <tr><td><code>rendering/</code></td><td>~8</td><td>0</td><td>0</td><td>VTK 编排</td></tr>
+  <tr><td><code>processing/</code></td><td>~45</td><td>0</td><td>0</td><td>ITK 编排 + 算法注册 + 参数校验</td></tr>
+  <tr><td><code>geometry/</code></td><td>~3</td><td>0</td><td>0</td><td>几何调用封装</td></tr>
+  <tr><td><code>mcp/</code></td><td>~10</td><td>0</td><td>0</td><td>MCP 协议</td></tr>
+  <tr><td><code>plugins/</code></td><td>~18</td><td>0</td><td>0</td><td>插件系统 (含 ModelPlugin + ModelZoo)</td></tr>
+  <tr><td><code>scripts/</code></td><td>~13</td><td>0</td><td>0</td><td>Script 模块 + medaxis API + 录制 + 沙箱</td></tr>
+  <tr><td><code>plugins/api_clients/</code></td><td>~12</td><td>0</td><td>0</td><td>AI API 客户端 + 服务适配器</td></tr>
+  <tr style="background:#ffffff08;"><td><strong>Python 合计</strong></td><td><strong>~160</strong></td><td><strong>0</strong></td><td><strong>0</strong></td><td>胶水 & 编排 & 脚本 & MCP & API & 工程闭环 & 手动编辑</td></tr>
+</table>
+</section>
+
+<footer>
+  MedAxis — Medical Imaging Platform · Design Blueprint v0.6 · 2025 · Python/C++ Hybrid + External AI API
+</footer>
+
+</div>
+
+<script>
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'default',
+  securityLevel: 'loose',
+  flowchart: { useMaxWidth: true, htmlLabels: true },
+  sequence: { useMaxWidth: true, showSequenceNumbers: true },
+  gantt: { useMaxWidth: true }
+});
+</script>
+
+</body>
+</html>

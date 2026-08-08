@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    name: Quality (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python-version: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Python dependencies
+        run: python -m pip install --upgrade pip .[dev]
+      - name: Lint
+        run: ruff check app core geometry io medaxis_io mcp plugins processing rendering scripts ui tests
+      - name: Test
+        run: pytest -q
+      - name: Configure CMake project
+        run: cmake -S . -B build -DMEDAXIS_BUILD_NATIVE=OFF
+      - name: Build CMake project
+        run: cmake --build build --config Release
