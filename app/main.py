@@ -1,9 +1,12 @@
 """MedAxis — Medical Imaging Platform Entry Point."""
-import sys
 import os
+import sys
+
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import Qt
+
 from app.app_controller import AppController
+
 
 def main():
     # High DPI support
@@ -14,6 +17,10 @@ def main():
     app.setOrganizationName("MedAxis")
     app.setApplicationName("MedAxis")
     app.setApplicationVersion("0.1.0")
+
+    # Smoke-test mode for packaged builds (CI): auto-quit after 3 seconds.
+    if os.environ.get("MEDAXIS_SMOKE"):
+        QTimer.singleShot(3000, app.quit)
     
     # Load dark theme
     theme_path = os.path.join(os.path.dirname(__file__), "..", "resources", "styles", "dark_theme.qss")

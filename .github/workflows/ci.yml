@@ -1,7 +1,13 @@
+# MedAxis CI — quick quality gates for development branches and pull requests.
+#
+# The full native compile + packaging pipeline runs on `master` only
+# (see release.yml). This workflow keeps dev branches fast: lint, unit tests
+# and a lightweight CMake configure check (no native build).
 name: CI
 
 on:
   push:
+    branches-ignore: [master]
   pull_request:
 
 jobs:
@@ -16,16 +22,25 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install Python dependencies
-        run: python -m pip install --upgrade pip .[dev]
+
+      - name: Install dependencies
+        run: uv sync  # dev group (pytest/ruff/pybind11) is installed by default
+
       - name: Lint
-        run: ruff check app core geometry io medaxis_io mcp plugins processing rendering scripts ui tests
-      - name: Test
-        run: pytest -q
-      - name: Configure CMake project
-        run: cmake -S . -B build -DMEDAXIS_BUILD_NATIVE=OFF
-      - name: Build CMake project
-        run: cmake --build build --config Release
+        run: uv run ruff check app core geometry io medaxis_io mcp plugins processing rendering scripts ui tests
+
+      - name: Unit tests
+        run: uv run pytest -q
+
+      - name: Byte-compile check
+        run: uv run python -m compileall -q app core geometry io medaxis_io mcp plugins processing rendering scripts ui utils ai_inference
+
+      - name: CMake configure check (native off)
+        run: |
+          cmake -S . -B build-check -DMEDAXIS_BUILD_NATIVE=OFF
+          cmake --build build-check --config Release

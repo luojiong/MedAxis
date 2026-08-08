@@ -1,0 +1,237 @@
+# MedAxis Release — full Windows x64 native build, packaging and GitHub
+# Release publishing. Runs only on `master`; publishing happens when a
+# version tag (v*) is pushed, artifacts are uploaded on every master build.
+#
+# Pipeline:
+#   build-native (windows-latest)
+#     ├─ uv environment + python deps
+#     ├─ micromamba conda-forge env (VTK/CGAL/OCCT/Eigen/Boost/GMP/MPFR/…)
+#     ├─ ITK 5.4.7 source build (cached)
+#     ├─ CMake configure + build the 5 native .pyd modules
+#     ├─ native + unit smoke tests
+#     ├─ PyInstaller onedir packaging (native DLLs bundled)
+#     └─ upload artifact (always) / publish GitHub Release (on v* tags)
+name: Release
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.12"
+  ITK_VERSION: "5.4.7"
+  VTK_VERSION: "9.6.2"
+  MAMBA_ENV: medaxis-cpp
+
+jobs:
+  build-native:
+    name: Build & package (Windows x64)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------- #
+      # Python toolchain (uv)
+      # ---------------------------------------------------------------- #
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python dependencies
+        run: uv sync
+
+      # ---------------------------------------------------------------- #
+      # C++ dependency environment (conda-forge via micromamba)
+      # ---------------------------------------------------------------- #
+      - name: Set up micromamba
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: ${{ env.MAMBA_ENV }}
+          create-args: >-
+            cgal eigen boost-cpp gmp mpfr occt=7.8
+            expat liblzma-devel tbb-devel ffmpeg
+
+      # vtk must be installed --no-deps: conda's qt6-main contains >260-char
+      # paths that micromamba cannot extract (documented in the README).
+      - name: Install VTK (--no-deps)
+        shell: micromamba-shell {0}
+        run: micromamba install --no-deps -y vtk=${{ env.VTK_VERSION }} vtk-base=${{ env.VTK_VERSION }}
+
+      - name: Patch conda env (vtkIOFFMPEG / eigen / utf8cpp)
+        shell: powershell
+        run: |
+          powershell -File scripts/ci/patch_conda_env.ps1 -EnvPath "$env:CONDA_PREFIX"
+
+      # ---------------------------------------------------------------- #
+      # ITK source build (cached)
+      # ---------------------------------------------------------------- #
+      - name: Cache ITK build
+        id: cache-itk
+        uses: actions/cache@v4
+        with:
+          path: |
+            build-deps/ITK-${{ env.ITK_VERSION }}
+            build-deps/itk-build
+            build-deps/itk-install
+          key: itk-${{ env.ITK_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Clone ITK source
+        if: steps.cache-itk.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch v${{ env.ITK_VERSION }} https://github.com/InsightSoftwareConsortium/ITK.git build-deps/ITK-${{ env.ITK_VERSION }}
+
+      - name: Configure ITK
+        if: steps.cache-itk.outputs.cache-hit != 'true'
+        run: |
+          cmake -S build-deps/ITK-${{ env.ITK_VERSION }} -B build-deps/itk-build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_CONFIGURATION_TYPES=Release -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF `
+            -DITK_BUILD_DEFAULT_MODULES=OFF `
+            -DModule_ITKCommon=ON -DModule_ITKImageFilterBase=ON -DModule_ITKImageIntensity=ON `
+            -DModule_ITKImageGradient=ON -DModule_ITKImageGrid=ON -DModule_ITKThresholding=ON `
+            -DModule_ITKStatistics=ON -DModule_ITKRegionGrowing=ON -DModule_ITKWatersheds=ON `
+            -DModule_ITKLevelSets=ON -DModule_ITKMathematicalMorphology=ON `
+            -DModule_ITKBinaryMathematicalMorphology=ON -DModule_ITKConnectedComponents=ON `
+            -DModule_ITKDistanceMap=ON -DModule_ITKRegistrationCommon=ON -DModule_ITKSmoothing=ON `
+            -DModule_ITKAnisotropicSmoothing=ON -DModule_ITKDenoising=ON -DModule_ITKClassifiers=ON `
+            -DModule_ITKDisplacementField=ON -DModule_ITKPDEDeformableRegistration=ON `
+            -DModule_ITKRegistrationMethodsv4=ON -DModule_ITKOptimizers=ON -DModule_ITKOptimizersv4=ON `
+            -DCMAKE_INSTALL_PREFIX="$env:GITHUB_WORKSPACE/build-deps/itk-install"
+        shell: powershell
+
+      - name: Build ITK
+        if: steps.cache-itk.outputs.cache-hit != 'true'
+        run: cmake --build build-deps/itk-build --config Release --parallel 4
+
+      - name: Install ITK
+        if: steps.cache-itk.outputs.cache-hit != 'true'
+        run: cmake --install build-deps/itk-build --config Release
+
+      # ---------------------------------------------------------------- #
+      # Native MedAxis modules
+      # ---------------------------------------------------------------- #
+      - name: Configure native build
+        shell: micromamba-shell {0}
+        run: |
+          cmake -S . -B build-native -G "Visual Studio 17 2022" -A x64 `
+            -DMEDAXIS_BUILD_NATIVE=ON `
+            "-DCMAKE_PREFIX_PATH=$env:MAMBA_ROOT_PREFIX/envs/${{ env.MAMBA_ENV }};$env:MAMBA_ROOT_PREFIX/envs/${{ env.MAMBA_ENV }}/Library;$env:GITHUB_WORKSPACE/build-deps/itk-install" `
+            "-DPython_EXECUTABLE=$env:GITHUB_WORKSPACE/.venv/Scripts/python.exe" `
+            -DPYBIND11_FINDPYTHON=ON `
+            "-Dpybind11_DIR=$env:GITHUB_WORKSPACE/.venv/Lib/site-packages/pybind11/share/cmake/pybind11"
+
+      - name: Build native modules
+        run: cmake --build build-native --config Release --parallel 4
+
+      - name: Deploy .pyd to medaxis/_native
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path medaxis/_native | Out-Null
+          Copy-Item build-native/native/bridge/Release/medaxis_bridge.pyd medaxis/_native/
+          Copy-Item build-native/native/itk_ext/Release/medaxis_itk.pyd medaxis/_native/
+          Copy-Item build-native/native/cgal_ext/Release/medaxis_cgal.pyd medaxis/_native/
+          Copy-Item build-native/native/occ_ext/Release/medaxis_occ.pyd medaxis/_native/
+          Copy-Item build-native/native/radiomics_ext/Release/medaxis_radiomics.pyd medaxis/_native/
+
+      # ---------------------------------------------------------------- #
+      # Tests (native smoke + unit)
+      # ---------------------------------------------------------------- #
+      - name: Configure runtime DLL search (config.yaml)
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:USERPROFILE/.medaxis" | Out-Null
+          $prefix = "$env:MAMBA_ROOT_PREFIX/envs/${{ env.MAMBA_ENV }};$env:GITHUB_WORKSPACE/build-deps/itk-install"
+          uv run python -c "from utils.config import AppConfig; c = AppConfig.instance(); c.set('native', 'cpp_prefix', r'$prefix'); c.save()"
+
+      - name: Native module smoke test
+        run: uv run python build-deps/native_ops_smoke.py
+
+      - name: Unit tests
+        run: uv run pytest -q
+
+      # ---------------------------------------------------------------- #
+      # Packaging (PyInstaller onedir, Windows x64)
+      # ---------------------------------------------------------------- #
+      - name: Install PyInstaller
+        run: uv pip install pyinstaller
+
+      - name: Package with PyInstaller
+        shell: powershell
+        run: |
+          # NOTE: do NOT add the conda Library/bin to PATH here — dependency
+          # analysis would collect conda's python312.dll / Qt6 DLLs and break
+          # the package. Native runtime DLLs are copied explicitly afterwards.
+          uv run pyinstaller --noconfirm --clean --onedir --name MedAxis `
+            --collect-all vtk --collect-all itk `
+            --add-data "resources;resources" `
+            --add-binary "medaxis/_native/*.pyd;medaxis/_native" `
+            --exclude-module PySide6.QtWebEngineWidgets `
+            app/main.py
+
+      - name: Bundle native runtime DLLs into the package
+        shell: powershell
+        run: |
+          $dest = "dist/MedAxis/_internal"
+          $envRoot = "$env:MAMBA_ROOT_PREFIX/envs/${{ env.MAMBA_ENV }}"
+          Get-ChildItem "$envRoot/Library/bin" -Filter "vtk*.dll" | Copy-Item -Destination $dest
+          Get-ChildItem "$envRoot/Library/bin" -Filter "TK*.dll" | Copy-Item -Destination $dest
+          Get-ChildItem "$envRoot/Library/bin" -Filter "libboost*.dll" | Copy-Item -Destination $dest
+          Get-ChildItem "$envRoot/Library/bin" -Filter "libgmp*.dll" | Copy-Item -Destination $dest
+          Get-ChildItem "$envRoot/Library/bin" -Filter "libmpfr*.dll" | Copy-Item -Destination $dest
+          Get-ChildItem "$envRoot/Library/bin" -Filter "tbb*.dll" | Copy-Item -Destination $dest
+          Get-ChildItem "$envRoot/Library/bin" -Filter "expat*.dll" | Copy-Item -Destination $dest
+          Get-ChildItem "$envRoot/Library/bin" -Filter "lzma*.dll" | Copy-Item -Destination $dest
+          Get-ChildItem "$envRoot/Library/bin" -Filter "avcodec*.dll" | Copy-Item -Destination $dest
+          Get-ChildItem "$envRoot/Library/bin" -Filter "avformat*.dll" | Copy-Item -Destination $dest
+          Get-ChildItem "$envRoot/Library/bin" -Filter "avutil*.dll" | Copy-Item -Destination $dest
+          Get-ChildItem "$envRoot/Library/bin" -Filter "swscale*.dll" | Copy-Item -Destination $dest
+          Get-ChildItem "$envRoot/Library/bin" -Filter "swresample*.dll" | Copy-Item -Destination $dest
+          Get-ChildItem "$env:GITHUB_WORKSPACE/build-deps/itk-install/bin" -Filter "itk*.dll" | Copy-Item -Destination $dest
+
+      - name: Smoke-test the packaged app
+        shell: powershell
+        run: |
+          $env:MEDAXIS_SMOKE = "1"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          & "dist/MedAxis/MedAxis.exe"
+          if ($LASTEXITCODE -ne 0) { throw "packaged app smoke test failed ($LASTEXITCODE)" }
+
+      - name: Create distribution archive
+        shell: powershell
+        run: |
+          Compress-Archive -Path dist/MedAxis -DestinationPath "MedAxis-${{ env.VTK_VERSION }}-win-x64.zip"
+          Get-Item "MedAxis-*.zip" | Select-Object Name, Length
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MedAxis-win-x64
+          path: MedAxis-*.zip
+          if-no-files-found: error
+
+  # -------------------------------------------------------------------- #
+  # Publish a GitHub Release (only when a v* tag is pushed)
+  # -------------------------------------------------------------------- #
+  publish:
+    name: Publish GitHub Release
+    needs: build-native
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MedAxis-win-x64
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: MedAxis-*.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
