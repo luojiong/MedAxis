@@ -84,7 +84,7 @@ class ModelZooWidget(QWidget):
         self._progress.setVisible(True)
         self._progress.setRange(0, 0)  # busy
         try:
-            out = self._downloader.extract_archive(path)
+            self._downloader.extract_archive(path)
         except Exception as exc:
             QMessageBox.warning(self, "Import failed", str(exc))
         finally:
