@@ -88,3 +88,6 @@ out5/
 out4/
 __pycache__/
 *.py[cod]
+dist/
+build/
+*.spec
