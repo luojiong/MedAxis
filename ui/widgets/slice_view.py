@@ -277,8 +277,8 @@ class SliceView(QWidget):
         lo, hi = image.GetScalarRange()
         self._window = max(hi - lo, 1.0)
         self._level = (hi + lo) / 2.0
-        self._image_actor.SetWindow(self._window)
-        self._image_actor.SetLevel(self._level)
+        self._image_actor.GetProperty().SetColorWindow(self._window)
+        self._image_actor.GetProperty().SetColorLevel(self._level)
 
         # Start in the middle of the stack.
         self.set_slice_index(self._num_slices // 2, emit=False)
@@ -354,8 +354,8 @@ class SliceView(QWidget):
         """Set the display window (width) and level."""
         self._window = float(window)
         self._level = float(level)
-        self._image_actor.SetWindow(self._window)
-        self._image_actor.SetLevel(self._level)
+        self._image_actor.GetProperty().SetColorWindow(self._window)
+        self._image_actor.GetProperty().SetColorLevel(self._level)
         self.render()
 
     def get_window_level(self) -> Tuple[float, float]:

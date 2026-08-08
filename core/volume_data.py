@@ -1,6 +1,7 @@
 """VolumeData — 3D image volume data model."""
 from __future__ import annotations
 
+from functools import cached_property
 import numpy as np
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -216,6 +217,31 @@ class VolumeData:
         """Return the underlying 3D numpy array."""
         return self.array
 
+    @cached_property
+    def image_data(self):
+        """A ``vtkImageData`` sharing this volume's voxel memory (zero-copy).
+
+        The numpy buffer is shared with VTK when the array is C-contiguous,
+        so renderers do not copy the volume.  The direction cosine matrix is
+        *not* applied here: renderers apply it via ``SetUserMatrix``
+        (:func:`rendering.helpers.volume_user_matrix`) to avoid double
+        transforms on actors that already carry a user matrix.
+        """
+        import vtk
+        from vtkmodules.util.numpy_support import numpy_to_vtk
+
+        array = np.ascontiguousarray(self.array)
+        vtk_data = numpy_to_vtk(array.ravel(), deep=False)
+        vtk_data.SetNumberOfComponents(1)
+
+        nk, nj, ni = array.shape
+        image = vtk.vtkImageData()
+        image.SetDimensions(ni, nj, nk)
+        image.SetSpacing(float(self.spacing[0]), float(self.spacing[1]), float(self.spacing[2]))
+        image.SetOrigin(float(self.origin[0]), float(self.origin[1]), float(self.origin[2]))
+        image.GetPointData().SetScalars(vtk_data)
+        return image
+
     def to_itk_image(self):
         """Convert to an ``itk.Image`` (requires the ``itk`` package).
 
@@ -229,7 +255,8 @@ class VolumeData:
         image = itk.GetImageFromArray(self.array)
         image.SetSpacing([float(s) for s in self.spacing])
         image.SetOrigin([float(o) for o in self.origin])
-        image.SetDirection(list(self.direction))
+        # SetDirection accepts an itkMatrix or a 2D numpy array, not a flat list.
+        image.SetDirection(np.asarray(self.direction, dtype=float).reshape(3, 3))
         return image
 
     def get_bridge_handle(self) -> dict[str, Any]:
