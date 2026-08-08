@@ -1,6 +1,6 @@
 # MedAxis Release — full Windows x64 native build, packaging and GitHub
-# Release publishing. Runs only on `master`; publishing happens when a
-# version tag (v*) is pushed, artifacts are uploaded on every master build.
+# Release publishing. Runs only on `main`; publishing happens when a
+# version tag (v*) is pushed, artifacts are uploaded on every main build.
 #
 # Pipeline:
 #   build-native (windows-latest)
@@ -15,7 +15,7 @@ name: Release
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 

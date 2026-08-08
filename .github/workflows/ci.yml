@@ -1,13 +1,13 @@
 # MedAxis CI — quick quality gates for development branches and pull requests.
 #
-# The full native compile + packaging pipeline runs on `master` only
+# The full native compile + packaging pipeline runs on `main` only
 # (see release.yml). This workflow keeps dev branches fast: lint, unit tests
 # and a lightweight CMake configure check (no native build).
 name: CI
 
 on:
   push:
-    branches-ignore: [master]
+    branches-ignore: [main]
   pull_request:
 
 jobs:
