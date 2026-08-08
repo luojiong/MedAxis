@@ -560,6 +560,10 @@ class SliceView(QWidget):
     def cine_running(self) -> bool:
         return self._cine_timer.isActive()
 
+    def cine_playing(self) -> bool:
+        """Alias for :meth:`cine_running` (menu-facing)."""
+        return self._cine_timer.isActive()
+
     def _cine_tick(self) -> None:
         next_index = (self._slice_index + 1) % self._num_slices
         self.set_slice_index(next_index)

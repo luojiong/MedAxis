@@ -189,6 +189,21 @@ class MainWindow(QMainWindow):
         view_menu.addAction(cpr_action)
         self._cpr_centerline_action = cpr_action
         view_menu.addSeparator()
+        wl_menu = view_menu.addMenu("&Window/Level Presets")
+        self._wl_preset_menu = wl_menu
+        view_menu.addSeparator()
+        cine_menu = view_menu.addMenu("&Cine")
+        cine_play = self._make_action("&Play / Pause", None, "Space")
+        cine_play.triggered.connect(self._toggle_cine)
+        cine_record = self._make_action("&Record MP4…", None, None)
+        cine_record.triggered.connect(self._record_cine)
+        cine_stop = self._make_action("&Stop Recording", None, None)
+        cine_stop.triggered.connect(self._stop_cine_recording)
+        cine_menu.addAction(cine_play)
+        cine_menu.addAction(cine_record)
+        cine_menu.addAction(cine_stop)
+        self._cine_actions = (cine_play, cine_record, cine_stop)
+        view_menu.addSeparator()
         # Dock toggles are added after the docks exist (see _build_docks).
 
         # --- Image ---
@@ -458,6 +473,24 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
+        # Window/level preset menu entries (loaded from resources).
+        try:
+            from rendering.cine_utils import load_presets
+
+            menu = getattr(self, "_wl_preset_menu", None)
+            if menu is not None:
+                menu.clear()
+                from PySide6.QtWidgets import QAction
+
+                for preset in load_presets():
+                    name = preset["name"]
+                    action = QAction(name, self)
+                    action.triggered.connect(
+                        lambda _=False, p=preset: self._apply_wl_preset(p))
+                    menu.addAction(action)
+        except Exception:
+            pass
+
     # ================================================================== #
     # Comparison view
     # ================================================================== #
@@ -480,6 +513,63 @@ class MainWindow(QMainWindow):
         layout.addWidget(view)
         dialog.show()
         view.set_volumes(volumes[-2], volumes[-1])
+
+    def _apply_wl_preset(self, preset: dict) -> None:
+        """Apply a window/level preset to every slice view."""
+        window = float(preset.get("window", 400))
+        level = float(preset.get("level", 40))
+        count = 0
+        for view in self.view_container.slice_views():
+            view.set_window_level(window, level)
+            count += 1
+        self.statusBar().showMessage(
+            f"Preset {preset.get('name', '')} (W {window:.0f} / L {level:.0f}) "
+            f"applied to {count} views", 3000)
+
+    def _toggle_cine(self) -> None:
+        """Play/pause cine on the active slice view (Space)."""
+        view = self.view_container.active_view()
+        from ui.widgets.slice_view import SliceView
+
+        if isinstance(view, SliceView):
+            if view.cine_playing():
+                view.stop_cine()
+            else:
+                view.start_cine()
+            self.statusBar().showMessage(
+                "Cine " + ("paused" if not view.cine_playing() else "playing"), 2000)
+
+    def _record_cine(self) -> None:
+        """Record the active slice view's cine loop to MP4."""
+        from PySide6.QtWidgets import QFileDialog
+
+        from rendering.cine_utils import CineRecorder
+
+        view = self.view_container.active_view()
+        from ui.widgets.slice_view import SliceView
+
+        if not isinstance(view, SliceView):
+            self.statusBar().showMessage("Select a slice view first", 3000)
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Record Cine", "", "MP4 (*.mp4)")
+        if not path:
+            return
+        try:
+            recorder = CineRecorder(view)
+            if not view.cine_playing():
+                view.start_cine()
+            self._cine_recorder = recorder
+            self._cine_recorder.start(path)
+            self.statusBar().showMessage("Recording cine to MP4…", 3000)
+        except Exception as exc:
+            self.statusBar().showMessage(f"Recording failed: {exc}", 5000)
+
+    def _stop_cine_recording(self) -> None:
+        recorder = getattr(self, "_cine_recorder", None)
+        if recorder is not None and recorder.recording:
+            recorder.stop()
+            self._cine_recorder = None
+            self.statusBar().showMessage("Cine recording saved", 4000)
 
     def _load_centerline_into_cpr(self) -> None:
         """Extract the current label's vessel centerline and load it into CPR."""
