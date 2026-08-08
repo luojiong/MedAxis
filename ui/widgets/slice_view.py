@@ -37,6 +37,7 @@ from vtkmodules.vtkCommonMath import vtkMatrix4x4
 from vtkmodules.vtkCommonDataModel import (
     vtkCellArray, vtkImageData, vtkPolyData,
 )
+from vtkmodules.vtkFiltersSources import vtkLineSource, vtkRegularPolygonSource
 from vtkmodules.vtkImagingCore import vtkImageReslice
 from vtkmodules.vtkInteractionStyle import vtkInteractorStyleUser
 from vtkmodules.vtkRenderingCore import (
@@ -523,7 +524,6 @@ class SliceView(QWidget):
     def show_brush_cursor(self, world: Sequence[float],
                           radius_mm: float) -> None:
         """Show a circular brush cursor centred at *world*."""
-        from vtkmodules.vtkFiltersSources import vtkRegularPolygonSource
         src = vtkRegularPolygonSource()
         src.SetNumberOfSides(32)
         src.SetRadius(max(radius_mm, 0.1))
@@ -559,6 +559,60 @@ class SliceView(QWidget):
 
     def cine_running(self) -> bool:
         return self._cine_timer.isActive()
+
+    # ================================================================== #
+    # Annotations: scale bar and ROI overlay
+    # ================================================================== #
+    def show_scale_bar(self, visible: bool = True, length_mm: float = 20.0) -> None:
+        """Draw a scale bar (ruler) at the bottom-left of the view."""
+        bar = getattr(self, "_scale_bar_actor", None)
+        if bar is None:
+            mapper = vtkPolyDataMapper()
+            line = vtkLineSource()
+            line.SetPoint1(20, 20, 0)
+            line.SetPoint2(20 + length_mm, 20, 0)
+            mapper.SetInputConnection(line.GetOutputPort())
+            actor = vtkActor()
+            actor.SetMapper(mapper)
+            actor.GetProperty().SetColor(1.0, 1.0, 0.0)
+            actor.GetProperty().SetLineWidth(2)
+            self._renderer.AddActor(actor)
+            self._scale_bar_actor = actor
+            self._scale_bar_length = length_mm
+            bar = actor
+        bar.SetVisibility(visible)
+        self.render()
+
+    def add_roi_overlay(self, center: tuple, radius_mm: float,
+                        color=(1.0, 0.0, 0.0)) -> None:
+        """Draw a circular ROI marker on the current slice."""
+        import vtk
+
+        circle = vtk.vtkRegularPolygonSource()
+        circle.SetNumberOfSides(64)
+        circle.SetCenter(center[0], center[1], 0.0)
+        circle.SetRadius(radius_mm)
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputConnection(circle.GetOutputPort())
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(*color)
+        actor.GetProperty().SetLineWidth(2)
+        actor.GetProperty().SetRepresentationToWireframe()
+        self._renderer.AddActor(actor)
+        self.render()
+
+    def add_text_annotation(self, text: str, position: tuple = (20, 40),
+                            color=(1.0, 1.0, 0.0)) -> None:
+        """Add a persistent text label to the view."""
+        label_actor = vtkTextActor()
+        label_actor.SetInput(text)
+        label_actor.GetPositionCoordinate().SetCoordinateSystemToNormalizedViewport()
+        label_actor.SetPosition(*position)
+        label_actor.GetTextProperty().SetFontSize(14)
+        label_actor.GetTextProperty().SetColor(*color)
+        self._renderer.AddActor2D(label_actor)
+        self.render()
 
     def cine_playing(self) -> bool:
         """Alias for :meth:`cine_running` (menu-facing)."""
