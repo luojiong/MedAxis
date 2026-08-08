@@ -177,6 +177,12 @@ class MainWindow(QMainWindow):
             layouts_menu.addAction(act)
             self._layout_actions[mode] = act
         view_menu.addSeparator()
+        compare_action = self._make_action(
+            "&Comparison View…", None, None)
+        compare_action.triggered.connect(self._open_comparison_view)
+        view_menu.addAction(compare_action)
+        self._compare_action = compare_action
+        view_menu.addSeparator()
         # Dock toggles are added after the docks exist (see _build_docks).
 
         # --- Image ---
@@ -445,6 +451,29 @@ class MainWindow(QMainWindow):
             attach_scripts(controller, self)
         except Exception:
             pass
+
+    # ================================================================== #
+    # Comparison view
+    # ================================================================== #
+    def _open_comparison_view(self) -> None:
+        """Open the comparison view dialog with the two most recent volumes."""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout
+
+        from ui.widgets.comparison_view import ComparisonView
+
+        volumes = list(getattr(self.controller, "volumes", {}).values())
+        if len(volumes) < 2:
+            self.statusBar().showMessage(
+                "Comparison needs at least two loaded volumes", 4000)
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Comparison View")
+        dialog.resize(1200, 700)
+        layout = QVBoxLayout(dialog)
+        view = ComparisonView(dialog)
+        layout.addWidget(view)
+        dialog.show()
+        view.set_volumes(volumes[-2], volumes[-1])
 
     # ================================================================== #
     # File / session slots

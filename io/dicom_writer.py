@@ -40,6 +40,7 @@ __all__ = ["DICOMWriter"]
 _SECONDARY_CAPTURE = "1.2.840.10008.5.1.4.1.1.7"      # SC Image Storage
 _SEGMENTATION = "1.2.840.10008.5.1.4.1.1.66.4"       # Segmentation Storage
 _BASIC_TEXT_SR = "1.2.840.10008.5.1.4.1.1.88.11"     # Basic Text SR Storage
+_RTSTRUCT = "1.2.840.10008.5.1.4.1.1.481.3"          # RT Structure Set Storage
 
 _APP_NAME = "MEDAXIS"
 
@@ -301,6 +302,95 @@ class DICOMWriter:
         path.parent.mkdir(parents=True, exist_ok=True)
         ds.save_as(str(path), write_like_original=False)
         logger.info("Wrote DICOM SR: %s (%d measurements)", path, len(measurements))
+        return path
+
+    # ------------------------------------------------------------------
+    # RTSTRUCT
+    # ------------------------------------------------------------------
+    def write_rtstruct(
+        self,
+        label,
+        volume,
+        path,
+        structure_name: str = None,
+        roi_number: int = 1,
+        patient_info: dict = None,
+    ) -> Path:
+        """Write a label volume as a DICOM RTSTRUCT.
+
+        Per-slice contour polygons (scikit-image) are stored as RTSS ROI
+        contours in LPS world coordinates.
+        """
+        import numpy as np
+
+        self._require_pydicom()
+        from skimage import measure
+
+        ds = self._base_dataset(_RTSTRUCT)
+        patient_info = patient_info or {}
+        ds.PatientName = patient_info.get("PatientName", "Anonymous")
+        ds.PatientID = patient_info.get("PatientID", "ANON")
+        ds.StudyInstanceUID = patient_info.get("StudyInstanceUID", generate_uid())
+        ds.SeriesInstanceUID = generate_uid()
+        ds.SOPInstanceUID = generate_uid()
+        ds.Modality = "RTSTRUCT"
+        ds.SeriesDescription = "MedAxis RT Structure Set"
+        ds.StructureSetLabel = structure_name or f"ROI_{roi_number}"
+        ds.StructureSetName = structure_name or getattr(label, "name", "ROI")
+        ds.StructureSetDate = ds.ContentDate
+        ds.StructureSetTime = ds.ContentTime
+
+        arr = np.asarray(label.array if hasattr(label, "array") else label)
+        spacing = getattr(volume, "spacing_mm", (1.0, 1.0, 1.0))
+        origin = getattr(volume, "origin_mm", (0.0, 0.0, 0.0))
+        direction = getattr(volume, "direction_matrix", np.eye(3))
+
+        def voxel_to_world(i: int, j: int, k: int):
+            w = np.asarray(origin, dtype=float) + direction @ (
+                np.array([i, j, k], dtype=float) * np.asarray(spacing, dtype=float))
+            return (float(w[0]), float(w[1]), float(w[2]))
+
+        structure_set_roi = Dataset()
+        structure_set_roi.ROINumber = roi_number
+        structure_set_roi.ReferencedFrameOfReferenceUID = ds.FrameOfReferenceUID
+        structure_set_roi.ROIName = structure_name or getattr(label, "name", "ROI")
+        structure_set_roi.ROIGenerationAlgorithm = "MANUAL"
+
+        roi_contour = Dataset()
+        roi_contour.ROINumber = roi_number
+        contour_sequence = []
+        for k in range(arr.shape[0]):
+            slice_mask = arr[k] > 0
+            if not slice_mask.any():
+                continue
+            for contour in measure.find_contours(slice_mask.astype(float), 0.5):
+                if len(contour) < 3:
+                    continue
+                points = []
+                for row, col in contour:
+                    world = voxel_to_world(int(round(col)), int(round(row)), k)
+                    points.extend([world[0], world[1], world[2]])
+                contour_dataset = Dataset()
+                contour_dataset.ContourData = points
+                contour_dataset.NumberOfContourPoints = len(points) // 3
+                contour_dataset.ContourGeometricType = "CLOSED_PLANAR"
+                contour_sequence.append(contour_dataset)
+
+        roi_contour.ContourSequence = contour_sequence
+        ds.ROIContourSequence = [roi_contour]
+        ds.StructureSetROISequence = [structure_set_roi]
+
+        obs = Dataset()
+        obs.ObservationNumber = roi_number
+        obs.ReferencedROINumber = roi_number
+        obs.ROIObservationLabel = structure_name or "ROI"
+        obs.RTROIInterpretedType = "ORGAN"
+        ds.RTROIObservationsSequence = [obs]
+
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        ds.save_as(str(path), write_like_original=False)
+        logger.info("Wrote RTSTRUCT: %s (%d contours)", path, len(contour_sequence))
         return path
 
     # ------------------------------------------------------------------

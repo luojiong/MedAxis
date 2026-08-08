@@ -35,6 +35,7 @@ class ExportFormat(str, Enum):
     STL = "stl"
     OBJ = "obj"
     PLY = "ply"
+    THREEMF = "3mf"
     # Screenshots
     PNG = "png"
     JPEG = "jpeg"
@@ -50,6 +51,7 @@ _EXTENSION_MAP = {
     ExportFormat.STL: ".stl",
     ExportFormat.OBJ: ".obj",
     ExportFormat.PLY: ".ply",
+    ExportFormat.THREEMF: ".3mf",
     ExportFormat.PNG: ".png",
     ExportFormat.JPEG: ".jpg",
     ExportFormat.PDF: ".pdf",
@@ -131,10 +133,71 @@ class ExportManager(QObject):
             self.export_error.emit(f"Label export failed: {exc}")
             return None
 
+    def _export_3mf(self, mesh: "MeshData", path: Path) -> Path:
+        """Write a mesh as a 3MF package (ZIP + core XML)."""
+        import zipfile
+
+        import numpy as np
+
+        vertices = np.asarray(mesh.vertices, dtype=float).reshape(-1, 3)
+        faces = np.asarray(mesh.faces, dtype=np.int64).reshape(-1, 3)
+
+        def fmt(v):
+            return f"{float(v):.6f}"
+
+        vertex_xml = "\n".join(
+            f'          <vertex x="{fmt(x)}" y="{fmt(y)}" z="{fmt(z)}"/>'
+            for x, y, z in vertices)
+        triangle_xml = "\n".join(
+            f'          <triangle v1="{a}" v2="{b}" v3="{c}"/>'
+            for a, b, c in faces)
+
+        model = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<model unit="millimeter" xml:lang="en-US" '
+            'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">\n'
+            "  <resources>\n"
+            '    <object id="1" type="model">\n'
+            "      <mesh>\n"
+            "        <vertices>\n"
+            f"{vertex_xml}\n"
+            "        </vertices>\n"
+            "        <triangles>\n"
+            f"{triangle_xml}\n"
+            "        </triangles>\n"
+            "      </mesh>\n"
+            "    </object>\n"
+            "  </resources>\n"
+            '  <build><item objectid="1"/></build>\n'
+            "</model>\n"
+        )
+        content_types = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
+            '<Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>\n'
+            "</Types>\n"
+        )
+        rels = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+            '<Relationship Target="/3D/3dmodel.model" '
+            'Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n'
+            "</Relationships>\n"
+        )
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("[Content_Types].xml", content_types)
+            zf.writestr("_rels/.rels", rels)
+            zf.writestr("3D/3dmodel.model", model)
+        return path
+
     def export_mesh(self, mesh: MeshData, format: Union[ExportFormat, str],
                     path: Union[str, Path]) -> Optional[Path]:
         """Export a surface mesh as STL, OBJ (+MTL) or PLY."""
-        format = ExportFormat(format)
+
+
         try:
             path = Path(path)
             self.export_progress.emit(0.2)
@@ -145,6 +208,8 @@ class ExportManager(QObject):
             elif format == ExportFormat.PLY:
                 mesh.save_ply(path)
                 out = path
+            elif format == ExportFormat.THREEMF:
+                out = self._export_3mf(mesh, Path(path))
             else:
                 raise ValueError(f"Unsupported mesh export format: {format}")
             self.export_progress.emit(1.0)
