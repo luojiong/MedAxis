@@ -34,7 +34,7 @@ class ViewContainer(QWidget):
     active_view_changed = Signal(QWidget)
     layout_changed = Signal(str)
 
-    LAYOUT_MODES = ("1up", "2up_h", "2up_v", "4up", "1plus3")
+    LAYOUT_MODES = ("1up", "2up_h", "2up_v", "4up", "1plus3", "mpr", "cpr")
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -45,6 +45,8 @@ class ViewContainer(QWidget):
         self._grid.setSpacing(2)
 
         self._views: Dict[str, QWidget] = {}
+        self._mpr_view = None
+        self._cpr_view = None
         self._mode = "4up"
         self._active: Optional[QWidget] = None
         self._cursor: List[float] = [0.0, 0.0, 0.0]
@@ -63,6 +65,17 @@ class ViewContainer(QWidget):
         self._views["axial"] = SliceView("axial", self)
         self._views["sagittal"] = SliceView("sagittal", self)
         self._views["3d"] = VolumeView(self)
+        try:
+            from ..widgets.mpr_view import MPRView
+            from ..widgets.cpr_view import CPRView
+
+            self._mpr_view = MPRView(self)
+            self._cpr_view = CPRView(self)
+            self._views["mpr"] = self._mpr_view
+            self._views["cpr"] = self._cpr_view
+        except Exception:
+            self._mpr_view = None
+            self._cpr_view = None
 
         for name, view in self._views.items():
             view.installEventFilter(self)
@@ -98,6 +111,20 @@ class ViewContainer(QWidget):
         self._clear_grid()
         v = self._views
 
+        if mode == "mpr":
+            cells = {}
+            for idx, name in enumerate(("axial", "coronal", "sagittal", "mpr")):
+                if name in v:
+                    cells[v[name]] = (idx % 2, idx // 2, 1, 1)
+            self._place(cells)
+            return
+        if mode == "cpr":
+            cells = {}
+            for idx, name in enumerate(("axial", "coronal", "sagittal", "cpr")):
+                if name in v:
+                    cells[v[name]] = (idx % 2, idx // 2, 1, 1)
+            self._place(cells)
+            return
         if mode == "1up":
             self._place({v["axial"]: (0, 0, 1, 1)})
         elif mode == "2up_h":
@@ -186,6 +213,12 @@ class ViewContainer(QWidget):
                 view.set_volume(volume)
             else:
                 view.set_volume(volume)
+        for extra in (self._mpr_view, self._cpr_view):
+            if extra is not None:
+                try:
+                    extra.set_volume(volume)
+                except Exception:
+                    pass
         # Centre the linked cursor.
         first = self.slice_views()[0]
         self._cursor = list(first.get_cursor())

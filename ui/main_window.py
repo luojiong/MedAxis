@@ -168,7 +168,8 @@ class MainWindow(QMainWindow):
         self._layout_actions = {}
         for mode, label in (("1up", "1-up"), ("2up_h", "2-up Horizontal"),
                             ("2up_v", "2-up Vertical"), ("4up", "4-up"),
-                            ("1plus3", "1 + 3")):
+                            ("1plus3", "1 + 3"), ("mpr", "MPR (3+1)"),
+                            ("cpr", "CPR (3+1)")):
             act = self._make_action(
                 label, lambda _=False, m=mode: self._set_layout(m))
             act.setCheckable(True)
@@ -182,6 +183,11 @@ class MainWindow(QMainWindow):
         compare_action.triggered.connect(self._open_comparison_view)
         view_menu.addAction(compare_action)
         self._compare_action = compare_action
+        cpr_action = self._make_action(
+            "Load &Centerline into CPR…", None, None)
+        cpr_action.triggered.connect(self._load_centerline_into_cpr)
+        view_menu.addAction(cpr_action)
+        self._cpr_centerline_action = cpr_action
         view_menu.addSeparator()
         # Dock toggles are added after the docks exist (see _build_docks).
 
@@ -474,6 +480,48 @@ class MainWindow(QMainWindow):
         layout.addWidget(view)
         dialog.show()
         view.set_volumes(volumes[-2], volumes[-1])
+
+    def _load_centerline_into_cpr(self) -> None:
+        """Extract the current label's vessel centerline and load it into CPR."""
+        from PySide6.QtWidgets import QMessageBox
+
+        from geometry.centerline import centerline_to_bspline, extract_centerline
+
+        labels = list(getattr(self.controller, "labels", {}).values())
+        if not labels:
+            self.statusBar().showMessage("No label available for centerline", 4000)
+            return
+        label = labels[-1]
+        arr = label.array if hasattr(label, "array") else label
+        volume = getattr(self.controller, "current_volume", None)
+        spacing = getattr(volume, "spacing_mm", (1.0, 1.0, 1.0)) if volume else (1.0, 1.0, 1.0)
+        origin = getattr(volume, "origin_mm", (0.0, 0.0, 0.0)) if volume else (0.0, 0.0, 0.0)
+        result = extract_centerline(arr, spacing=spacing, origin=origin)
+        if len(result["points"]) < 4:
+            QMessageBox.warning(self, "Centerline", "Centerline too short")
+            return
+        curve = centerline_to_bspline(result["points"], 100)
+        import vtk
+
+        poly = vtk.vtkPolyData()
+        pts = vtk.vtkPoints()
+        for point in curve["points"]:
+            pts.InsertNextPoint(float(point[0]), float(point[1]), float(point[2]))
+        poly.SetPoints(pts)
+        # vtkSplineFilter requires a polyline cell connecting the points.
+        line = vtk.vtkPolyLine()
+        line.GetPointIds().SetNumberOfIds(pts.GetNumberOfPoints())
+        for i in range(pts.GetNumberOfPoints()):
+            line.GetPointIds().SetId(i, i)
+        cells = vtk.vtkCellArray()
+        cells.InsertNextCell(line)
+        poly.SetLines(cells)
+        cpr = getattr(self.view_container, "_cpr_view", None)
+        if cpr is not None:
+            cpr.set_path(poly)
+            self.view_container.set_layout_mode("cpr")
+        self.statusBar().showMessage(
+            f"Centerline loaded into CPR ({curve.get('length_mm', 0):.1f} mm)", 5000)
 
     # ================================================================== #
     # File / session slots

@@ -183,9 +183,10 @@ class CPRView(QWidget):
         # 4) Build the sampling grid: width along path, height across it.
         spacing = float(np.mean(self._image.GetSpacing()))
         height = max(int(self._thickness_mm / spacing), 2)
-        width = self._num_samples
-
-        # Sample positions (height*width points).
+        # Sample positions (height*width points); the width follows the
+        # resampled path point count.
+        width = max(int(n_pts), 2)
+        self._num_samples = width
         offsets = (np.arange(height) - height / 2.0) * spacing
         grid = (points[:, None, :]
                 + normals[:, None, :] * offsets[None, :, None])
@@ -225,8 +226,8 @@ class CPRView(QWidget):
 
         self._image_actor.GetMapper().SetInputData(cpr)
         lo, hi = cpr.GetScalarRange()
-        self._image_actor.SetWindow(max(hi - lo, 1.0))
-        self._image_actor.SetLevel((hi + lo) / 2.0)
+        self._image_actor.GetProperty().SetColorWindow(max(hi - lo, 1.0))
+        self._image_actor.GetProperty().SetColorLevel((hi + lo) / 2.0)
         self._renderer.ResetCamera()
         self.render()
 
