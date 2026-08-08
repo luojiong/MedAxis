@@ -223,6 +223,7 @@ class AppController(QObject):
             from mcp.resources import register_all_resources
 
             router = MCPRouter()
+            self.mcp_router = router
             for tool in register_all_tools(self):
                 router.register_tool(tool)
             for resource in register_all_resources(self):
