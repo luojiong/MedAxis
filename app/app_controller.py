@@ -563,6 +563,36 @@ class AppController(QObject):
                     view.set_label_visibility(label, visible)
         self.dirty_changed.emit(True)
 
+    def on_label_boolean(self, row: int, operation: str) -> None:
+        """Union / intersect / subtract between the first two labels."""
+        import numpy as np
+
+        labels = list(self.label_manager.list())
+        if len(labels) < 2:
+            self.report_error("Boolean operations need at least two labels")
+            return
+        a, b = labels[0], labels[1]
+        arr_a = np.asarray(a.array) > 0
+        arr_b = np.asarray(b.array) > 0
+        if arr_a.shape != arr_b.shape:
+            self.report_error("Labels must have the same shape")
+            return
+        if operation == "union":
+            result = arr_a | arr_b
+        elif operation == "intersect":
+            result = arr_a & arr_b
+        elif operation == "subtract":
+            result = arr_a & ~arr_b
+        else:
+            self.report_error(f"Unknown boolean operation: {operation}")
+            return
+        out = self.label_manager.create(
+            result.astype(np.int16), a.parent_volume_id,
+            name=f"{a.name}_{operation}_{b.name}", source="label:boolean")
+        self.labels[out.id] = out
+        self.label_created.emit(out)
+        self.set_status(f"Label {operation} complete: {out.name}")
+
     def on_label_color_changed(self, row: int, color) -> None:
         if self.label_manager is not None:
             labels = self.label_manager.list()
