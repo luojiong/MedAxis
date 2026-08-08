@@ -1,0 +1,13 @@
+{
+  "presets": [
+    {"name": "CT Lung", "modality": "CT", "window": 1500, "level": -600},
+    {"name": "CT Mediastinum", "modality": "CT", "window": 400, "level": 40},
+    {"name": "CT Bone", "modality": "CT", "window": 2000, "level": 300},
+    {"name": "CT Brain", "modality": "CT", "window": 80, "level": 40},
+    {"name": "CT Abdomen", "modality": "CT", "window": 400, "level": 50},
+    {"name": "CT Angio", "modality": "CT", "window": 600, "level": 100},
+    {"name": "MR T1 Brain", "modality": "MR", "window": 800, "level": 400},
+    {"name": "MR T2 Brain", "modality": "MR", "window": 1000, "level": 500},
+    {"name": "PET SUV 0-10", "modality": "PT", "window": 10, "level": 5}
+  ]
+}
