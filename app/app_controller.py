@@ -295,17 +295,15 @@ class AppController(QObject):
     # Main-window command surface
     # ------------------------------------------------------------------
     def open_file(self, path=None) -> None:
-        """Open a medical image, showing the file dialog when called by Qt."""
+        """Open a medical image or a whole DICOM folder.
+
+        When called by Qt a single file dialog is shown which supports both
+        modes: pick a file as usual, or press the ``Open Folder...`` button
+        inside the dialog to select a directory whose DICOM files are all
+        loaded.  ``path`` may also be passed directly (no dialog).
+        """
         if isinstance(path, bool) or path is None:
-            if self.main_window is None:
-                return
-            path, _ = QFileDialog.getOpenFileName(
-                self.main_window,
-                "Open Medical Image",
-                "",
-                "Medical Images (*.dcm *.nii *.nii.gz *.nrrd *.nhdr *.raw *.medaxis);;"
-                "All Files (*)",
-            )
+            path = self._prompt_open_path()
         if not path:
             return
         if str(path).lower().endswith(".medaxis"):
@@ -317,6 +315,64 @@ class AppController(QObject):
         self.progress_changed.emit(1)
         self.file_manager.open_queued(str(path))
         self.file_opened.emit(str(path))
+
+    def _prompt_open_path(self) -> Optional[str]:
+        """Show one combined dialog: pick a single file or switch to a
+        directory picker via the embedded ``Open Folder...`` button."""
+        if self.main_window is None:
+            return None
+        from PySide6.QtWidgets import QDialogButtonBox
+
+        dialog = QFileDialog(
+            self.main_window,
+            "Open Medical Image or DICOM Folder",
+            "",
+            "Medical Images (*.dcm *.nii *.nii.gz *.nrrd *.nhdr *.raw *.medaxis);;"
+            "All Files (*)",
+        )
+        dialog.setOption(QFileDialog.DontUseNativeDialog)
+        dialog.setFileMode(QFileDialog.ExistingFile)
+
+        folder_choice: dict = {}
+
+        def choose_folder() -> None:
+            folder_choice["path"] = QFileDialog.getExistingDirectory(
+                self.main_window,
+                "Open DICOM Folder",
+                dialog.directory().absolutePath(),
+                QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
+            )
+            dialog.reject()
+
+        button_box = dialog.findChild(QDialogButtonBox)
+        if button_box is not None:
+            button_box.addButton("Open Folder...", QDialogButtonBox.ActionRole)
+            button_box.buttons()[-1].clicked.connect(choose_folder)
+
+        if dialog.exec() == QFileDialog.Accepted:
+            selected = dialog.selectedFiles()
+            return selected[0] if selected else None
+        return folder_choice.get("path")
+
+    @Slot()
+    def open_folder(self, path=None) -> None:
+        """Open a DICOM folder, showing the directory dialog when called by Qt.
+
+        Every ``.dcm`` file (recursively) inside the chosen folder is read
+        and assembled into a volume; FileManager picks the largest series.
+        """
+        if isinstance(path, bool) or path is None:
+            if self.main_window is None:
+                return
+            path = QFileDialog.getExistingDirectory(
+                self.main_window,
+                "Open DICOM Folder",
+                "",
+                QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
+            )
+        if not path:
+            return
+        self.open_file(str(path))
 
     def save_file(self, path=None) -> bool:
         """Persist the current session metadata when a project path exists."""

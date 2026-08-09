@@ -50,8 +50,8 @@ def main():
     if os.environ.get("MEDAXIS_SMOKE"):
         QTimer.singleShot(3000, app.quit)
     
-    # Load dark theme
-    theme_path = os.path.join(os.path.dirname(__file__), "..", "resources", "styles", "dark_theme.qss")
+    # Load the light workstation theme used by the imaging layout.
+    theme_path = os.path.join(os.path.dirname(__file__), "..", "resources", "styles", "light_theme.qss")
     if os.path.exists(theme_path):
         with open(theme_path, "r", encoding="utf-8") as f:
             app.setStyleSheet(f.read())

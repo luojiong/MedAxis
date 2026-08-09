@@ -41,8 +41,8 @@ class ViewContainer(QWidget):
         self.setObjectName("ViewContainer")
 
         self._grid = QGridLayout(self)
-        self._grid.setContentsMargins(2, 2, 2, 2)
-        self._grid.setSpacing(2)
+        self._grid.setContentsMargins(8, 8, 8, 8)
+        self._grid.setSpacing(14)
 
         self._views: Dict[str, QWidget] = {}
         self._mpr_view = None
@@ -78,6 +78,7 @@ class ViewContainer(QWidget):
             self._cpr_view = None
 
         for name, view in self._views.items():
+            view.setObjectName("viewport")
             view.installEventFilter(self)
             if isinstance(view, SliceView):
                 view.crosshair_moved.connect(

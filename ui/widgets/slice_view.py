@@ -30,7 +30,7 @@ import numpy as np
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget
 
 from vtkmodules.vtkCommonCore import vtkLookupTable, vtkPoints
 from vtkmodules.vtkCommonMath import vtkMatrix4x4
@@ -148,9 +148,12 @@ class SliceView(QWidget):
         self._axes_matrix.DeepCopy(RESLICE_MATRICES[orientation])
 
         self._renderer = vtkRenderer()
-        self._renderer.SetBackground(0.07, 0.07, 0.09)
+        # Medical slice canvases must remain neutral black regardless of the
+        # surrounding workstation theme or whether image data is loaded.
+        self._renderer.SetBackground(0.0, 0.0, 0.0)
 
         self._iren = QVTKRenderWindowInteractor(self)
+        self._iren.setStyleSheet("background-color: #000000;")
         self._iren.Initialize()
         self._iren.SetInteractorStyle(vtkInteractorStyleUser())
         self._iren.GetRenderWindow().AddRenderer(self._renderer)
@@ -171,11 +174,71 @@ class SliceView(QWidget):
 
         self._build_overlays()
         self._install_observers()
+        self._build_slice_slider()
 
-        layout = QVBoxLayout(self)
+        layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._iren)
+        layout.setSpacing(2)
+        layout.addWidget(self._iren, 1)
+        layout.addWidget(self._slider_panel)
+        self.setStyleSheet("background-color: #000000;")
 
+    # ------------------------------------------------------------------ #
+    # Slice navigation slider (vertical bar on the right edge)
+    # ------------------------------------------------------------------ #
+    def _build_slice_slider(self) -> None:
+        """Create the vertical drag bar used to change the slice index."""
+        self._slider_panel = QWidget(self)
+        self._slider_panel.setObjectName("SliceSliderPanel")
+        self._slider_panel.setFixedWidth(30)
+        self._slider_panel.setStyleSheet(
+            "QWidget#SliceSliderPanel { background-color: #141414; }")
+
+        panel = QVBoxLayout(self._slider_panel)
+        panel.setContentsMargins(2, 3, 2, 3)
+        panel.setSpacing(2)
+
+        self._slider_label = QLabel("1/1", self._slider_panel)
+        self._slider_label.setAlignment(Qt.AlignHCenter)
+        self._slider_label.setStyleSheet(
+            "color: #b8b8b8; font-size: 10px; background: transparent;")
+
+        self._slider = QSlider(Qt.Vertical, self._slider_panel)
+        self._slider.setRange(0, 0)
+        self._slider.setValue(0)
+        self._slider.setSingleStep(1)
+        self._slider.setPageStep(10)
+        self._slider.setTracking(True)
+        self._slider.setStyleSheet(
+            "QSlider::groove:vertical { width: 6px; background: #3a3a3a;"
+            " border-radius: 3px; }"
+            "QSlider::handle:vertical { height: 18px; width: 12px;"
+            " margin: 0 -3px; background: #2f7fd1; border-radius: 6px; }"
+            "QSlider::sub-page:vertical { background: #2f7fd1;"
+            " border-radius: 3px; }")
+        self._slider.valueChanged.connect(self._on_slider_value)
+
+        panel.addWidget(self._slider_label)
+        panel.addWidget(self._slider, 1)
+
+    def _on_slider_value(self, value: int) -> None:
+        """User dragged the bar: move this view and let the container
+        propagate the change to the linked views."""
+        if value != self._slice_index:
+            self.set_slice_index(value)
+
+    def _sync_slider(self) -> None:
+        """Synchronise the bar with the current slice index without
+        re-triggering navigation (guard against signal loops)."""
+        slider = getattr(self, "_slider", None)
+        if slider is None:
+            return
+        slider.blockSignals(True)
+        slider.setRange(0, max(self._num_slices - 1, 0))
+        slider.setValue(self._slice_index)
+        slider.blockSignals(False)
+        self._slider_label.setText(
+            f"{self._slice_index + 1}/{self._num_slices}")
     # ================================================================== #
     # Construction helpers
     # ================================================================== #
@@ -318,6 +381,7 @@ class SliceView(QWidget):
             return
         index = max(0, min(int(index), self._num_slices - 1))
         self._slice_index = index
+        self._sync_slider()
 
         axis = self.normal_axis()
         origin = self._image.GetOrigin()

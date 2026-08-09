@@ -22,10 +22,10 @@ from __future__ import annotations
 from typing import List, Optional
 
 from PySide6.QtCore import QSettings, Qt, Slot
-from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QGuiApplication, QKeySequence
 from PySide6.QtWidgets import (
-    QDockWidget, QFileDialog, QLabel, QMainWindow, QMessageBox, QProgressBar, QSplitter,
-    QWidget,
+    QDockWidget, QFileDialog, QFrame, QLabel, QMainWindow, QMessageBox,
+    QProgressBar, QSplitter, QTextEdit, QToolBar, QVBoxLayout, QWidget,
 )
 
 from .panels.ai_service_panel import AIServicePanel
@@ -37,6 +37,7 @@ from scripts.console import ScriptConsole
 from scripts.editor import ScriptEditor
 from .panels.view_container import ViewContainer
 from .widgets.label_editor import LabelEditor
+from .glass import apply_glass_surface, apply_glass_window
 
 
 class ScriptConsoleWidget(ScriptConsole):
@@ -55,7 +56,7 @@ class MainWindow(QMainWindow):
                  parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("MedAxis — Medical Imaging Platform")
-        self.resize(1600, 950)
+        self.resize(1704, 916)
 
         self._settings = QSettings("MedAxis", "MedAxis")
         self._dirty = False
@@ -75,8 +76,25 @@ class MainWindow(QMainWindow):
         self._build_docks()
         self._update_recent_menu()
 
+        apply_glass_window(self)
+        apply_glass_surface(self.view_container, radius=12)
+        apply_glass_surface(self.property_panel, radius=12)
+        apply_glass_surface(self.project_info, radius=10)
+
+        self._fit_initial_workspace()
         if controller is not None:
             self.attach_controller(controller)
+
+    def _fit_initial_workspace(self) -> None:
+        """Keep the full viewer and inspector visible on high-DPI desktops."""
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        if screen is None:
+            return
+        available = screen.availableGeometry()
+        width = min(1704, max(800, available.width() - 48))
+        height = min(916, max(620, available.height() - 48))
+        self.resize(width, height)
+        self.move(available.center() - self.rect().center())
 
     # ================================================================== #
     # Actions & menus
@@ -98,6 +116,8 @@ class MainWindow(QMainWindow):
         # File
         a["new"] = self._make_action("&New Session", self._new_session, "Ctrl+N")
         a["open"] = self._make_action("&Open...", self._open_file, "Ctrl+O")
+        a["open_dicom_folder"] = self._make_action(
+            "Open DICOM &Folder...", self._open_dicom_folder, "Ctrl+Shift+O")
         a["save"] = self._make_action("&Save", self._save_file, "Ctrl+S")
         a["save_as"] = self._make_action("Save &As...", self._save_file_as,
                                          "Ctrl+Shift+S")
@@ -146,6 +166,7 @@ class MainWindow(QMainWindow):
         file_menu = bar.addMenu("&File")
         file_menu.addAction(a["new"])
         file_menu.addAction(a["open"])
+        file_menu.addAction(a["open_dicom_folder"])
         file_menu.addSeparator()
         file_menu.addAction(a["save"])
         file_menu.addAction(a["save_as"])
@@ -240,6 +261,9 @@ class MainWindow(QMainWindow):
         analyze_menu.addAction(a["histogram"])
         analyze_menu.addAction(a["radiomics"])
 
+        for title in ("&Align", "S&imulate", "3D &Tools", "&Script"):
+            bar.addMenu(title)
+
         # --- Tools ---
         tools_menu = bar.addMenu("&Tools")
         self._tools_console_action = self._make_action(
@@ -258,19 +282,63 @@ class MainWindow(QMainWindow):
         self.addToolBar(self.toolbar)
         self.toolbar.tool_changed.connect(self._set_tool)
 
+        self.addToolBarBreak(Qt.TopToolBarArea)
+        self.workspace_tabs = QToolBar("Workspace Sections", self)
+        self.workspace_tabs.setObjectName("WorkspaceTabs")
+        self.workspace_tabs.setMovable(False)
+        self.workspace_tabs.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self._workspace_tab_group = QActionGroup(self.workspace_tabs)
+        self._workspace_tab_group.setExclusive(True)
+        for name in ("View", "Measure", "Segment", "Cardiovascular", "Pulmonary",
+                     "Muscular", "Mapping", "Analyze", "Simulate", "3D Tools"):
+            action = QAction(name, self.workspace_tabs)
+            action.setCheckable(True)
+            action.setToolTip(f"Switch to {name} workspace")
+            action.triggered.connect(
+                lambda _=False, tab=name: self._set_workspace_section(tab))
+            self._workspace_tab_group.addAction(action)
+            self.workspace_tabs.addAction(action)
+            if name == "View":
+                action.setChecked(True)
+        self.addToolBar(Qt.TopToolBarArea, self.workspace_tabs)
+
     # ================================================================== #
     # Central widget: viewports (72%) | property panel (28%)
     # ================================================================== #
     def _build_central_widget(self) -> None:
         self.view_container = ViewContainer(self)
         self.property_panel = PropertyPanel(self)
+        self.property_panel.setMinimumWidth(360)
+        self.property_panel.setMaximumWidth(520)
+
+        # Keep the project trail visible below the linked viewports, as in a
+        # clinical workstation: it is useful context without covering images.
+        self.project_info = QTextEdit(self)
+        self.project_info.setObjectName("ProjectInfo")
+        self.project_info.setReadOnly(True)
+        self.project_info.setFixedHeight(112)
+        self.project_info.setPlainText(
+            "2026-08-08 10:35:07  Project edition information\n"
+            "Project created in: MedAxis Medical Imaging\n"
+            "Edition: Medical\n\n"
+            "10:35:10  Open project\n"
+            "File name: No project loaded"
+        )
+
+        left_splitter = QSplitter(Qt.Vertical, self)
+        left_splitter.addWidget(self.view_container)
+        left_splitter.addWidget(self.project_info)
+        left_splitter.setStretchFactor(0, 1)
+        left_splitter.setStretchFactor(1, 0)
+        left_splitter.setChildrenCollapsible(False)
 
         splitter = QSplitter(Qt.Horizontal, self)
-        splitter.addWidget(self.view_container)
+        splitter.addWidget(left_splitter)
         splitter.addWidget(self.property_panel)
-        splitter.setStretchFactor(0, 72)
-        splitter.setStretchFactor(1, 28)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 0)
         splitter.setChildrenCollapsible(False)
+        splitter.setSizes([1180, 440])
         self._central_splitter = splitter
         self.setCentralWidget(splitter)
 
@@ -299,6 +367,14 @@ class MainWindow(QMainWindow):
         self.gpu_memory_label.setMinimumWidth(110)
         status.addPermanentWidget(self.gpu_memory_label)
 
+    def _set_workspace_section(self, section: str) -> None:
+        """Switch contextual panels without disturbing the active image view."""
+        if section == "Segment":
+            self.property_panel.set_tab("masks")
+        elif section == "Analyze":
+            self.property_panel.set_tab("measurements")
+        self.statusBar().showMessage(f"{section} workspace", 1500)
+
     # ================================================================== #
     # Dock widgets
     # ================================================================== #
@@ -306,6 +382,7 @@ class MainWindow(QMainWindow):
         # DICOM browser — left.
         self.dicom_browser = DICOMBrowser("DICOM Browser", self)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.dicom_browser)
+        self.dicom_browser.setVisible(False)
 
         # Script console — bottom.
         self.script_console = ScriptConsoleWidget(parent=self)
@@ -336,6 +413,7 @@ class MainWindow(QMainWindow):
         self.algorithm_dock.setObjectName("AlgorithmDock")
         self.algorithm_dock.setWidget(self.algorithm_panel)
         self.addDockWidget(Qt.RightDockWidgetArea, self.algorithm_dock)
+        self.algorithm_dock.setVisible(False)
 
         # Label editor is kept in a dock so it is available without stealing
         # space from the linked viewports.
@@ -344,6 +422,7 @@ class MainWindow(QMainWindow):
         self.label_editor_dock.setObjectName("LabelEditorDock")
         self.label_editor_dock.setWidget(self.label_editor)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.label_editor_dock)
+        self.label_editor_dock.setVisible(False)
 
         # Hook dock visibility to Tools-menu actions.
         self._tools_console_action.toggled.connect(self.console_dock.setVisible)
@@ -641,6 +720,20 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(
             self, "Open File", "",
             "Medical Images (*.dcm *.nii *.nii.gz *.nrrd *.mha);;All Files (*)")
+        if path:
+            self._load_path(path)
+
+    @Slot()
+    def _open_dicom_folder(self) -> None:
+        """Select a DICOM series directory and submit it to FileManager."""
+        if not self._confirm_discard_changes():
+            return
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Open DICOM Folder",
+            "",
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
+        )
         if path:
             self._load_path(path)
 

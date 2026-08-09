@@ -14,9 +14,9 @@ from __future__ import annotations
 
 from typing import Dict, Optional
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
-from PySide6.QtWidgets import QToolBar, QWidget
+from PySide6.QtWidgets import QApplication, QStyle, QToolBar, QWidget
 
 
 class MedAxisToolBar(QToolBar):
@@ -73,6 +73,14 @@ class MedAxisToolBar(QToolBar):
         if shortcut:
             action.setShortcut(QKeySequence(shortcut))
         action.setToolTip(tooltip or text)
+        action.setStatusTip(tooltip or text)
+        action.setIcon(QApplication.style().standardIcon({
+            "open": QStyle.SP_DialogOpenButton,
+            "save": QStyle.SP_DialogSaveButton,
+            "undo": QStyle.SP_ArrowBack,
+            "redo": QStyle.SP_ArrowForward,
+            "reset": QStyle.SP_BrowserReload,
+        }.get(name, QStyle.SP_FileIcon)))
         if checkable:
             self._tool_group.addAction(action)
         self.actions_by_name[name] = action
@@ -137,6 +145,7 @@ class MedAxisToolBar(QToolBar):
         self.addAction(a["zoom"])
         self.addAction(a["pan"])
         self.addAction(a["reset"])
+        self.setToolButtonStyle(Qt.ToolButtonIconOnly)
 
     # ------------------------------------------------------------------ #
     # Public API

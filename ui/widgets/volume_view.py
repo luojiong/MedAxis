@@ -174,9 +174,10 @@ class VolumeView(QWidget):
         # VTK pipeline
         # ------------------------------------------------------------- #
         self._renderer = vtkRenderer()
-        self._renderer.SetBackground(0.05, 0.05, 0.08)
+        self._renderer.SetBackground(0.0, 0.0, 0.0)
 
         self._iren = QVTKRenderWindowInteractor(self)
+        self._iren.setStyleSheet("background-color: #000000;")
         self._iren.Initialize()
         self._style = vtkInteractorStyleTrackballCamera()
         self._iren.SetInteractorStyle(self._style)
@@ -204,6 +205,7 @@ class VolumeView(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._iren)
+        self.setStyleSheet("background-color: #000000;")
 
     # ------------------------------------------------------------------ #
     def _build_orientation_marker(self) -> None:
